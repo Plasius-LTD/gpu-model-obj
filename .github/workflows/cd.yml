@@ -33,6 +33,11 @@ on:
         description: "Internal fail-closed release tag for the publish phase"
         required: false
         type: string
+      bootstrap_first_publish:
+        description: "Internal one-time first-publication credential gate; remove after trusted publishing is bound"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -146,7 +151,8 @@ jobs:
                 "bump": "none",
                 "preid": $preid,
                 "expected_commit_sha": $sha,
-                "release_tag": $tag
+                "release_tag": $tag,
+                "bootstrap_first_publish": "false"
               }
             }' |
             gh api -X POST \
@@ -908,8 +914,56 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce one-time first-publication boundary
+        if: steps.release.outputs.should_publish_npm == 'true' && inputs.bootstrap_first_publish == true
+        env:
+          PACKAGE_NAME: ${{ steps.release.outputs.package_name }}
+          PACKAGE_VERSION: ${{ steps.release.outputs.release_version }}
+        run: |
+          set -euo pipefail
+
+          if [ "${PACKAGE_VERSION}" != "0.1.0" ]; then
+            echo "First-publication bootstrap is restricted to version 0.1.0." >&2
+            exit 1
+          fi
+          if npm view "${PACKAGE_NAME}" name --registry https://registry.npmjs.org --prefer-online >/dev/null 2>&1; then
+            echo "${PACKAGE_NAME} already exists; the one-time bootstrap credential is forbidden." >&2
+            exit 1
+          fi
+
+      - name: Publish first package with the one-time bootstrap credential
+        if: steps.release.outputs.should_publish_npm == 'true' && inputs.bootstrap_first_publish == true
+        env:
+          DIST_TAG: ${{ steps.release.outputs.dist_tag }}
+          NPM_BOOTSTRAP_CREDENTIAL: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+          TARBALL: ${{ steps.release.outputs.tarball_path }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NPM_BOOTSTRAP_CREDENTIAL}" ]; then
+            echo "The production environment does not contain the time-limited bootstrap credential." >&2
+            exit 1
+          fi
+
+          USERCONFIG="${RUNNER_TEMP}/npm-bootstrap-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.npmrc"
+          cleanup() {
+            if [ -f "${USERCONFIG}" ]; then
+              : > "${USERCONFIG}"
+              rm -f "${USERCONFIG}"
+            fi
+          }
+          trap cleanup EXIT
+          umask 077
+          printf '%s\n' \
+            '@plasius:registry=https://registry.npmjs.org' \
+            '//registry.npmjs.org/:_authToken=${NPM_BOOTSTRAP_CREDENTIAL}' \
+            > "${USERCONFIG}"
+
+          PUBLISH_ARGS=(--access public --provenance --registry https://registry.npmjs.org --tag "${DIST_TAG}")
+          npm publish "./${TARBALL}" --ignore-scripts --userconfig "${USERCONFIG}" "${PUBLISH_ARGS[@]}"
+
       - name: Publish package through npm OIDC
-        if: steps.release.outputs.should_publish_npm == 'true'
+        if: steps.release.outputs.should_publish_npm == 'true' && inputs.bootstrap_first_publish != true
         env:
           DIST_TAG: ${{ steps.release.outputs.dist_tag }}
           TARBALL: ${{ steps.release.outputs.tarball_path }}

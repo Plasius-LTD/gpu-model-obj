@@ -8,7 +8,7 @@ const cdWorkflow = readWorkflow("cd");
 const ciWorkflow = readWorkflow("ci");
 
 describe("package release trust boundary", () => {
-  it("uses exact-main hosted OIDC publication without write tokens", () => {
+  it("uses exact-main hosted OIDC with a bounded first-publication bootstrap", () => {
     expect(cdWorkflow).toContain("runs-on: ubuntu-latest");
     expect(cdWorkflow).toContain("environment: production");
     expect(cdWorkflow).toContain("id-token: write");
@@ -22,6 +22,13 @@ describe("package release trust boundary", () => {
     expect(cdWorkflow).toContain('ACTUAL_NODE%%.*');
     expect(cdWorkflow).toContain('"11.5.1"');
     expect(cdWorkflow).toContain("--provenance");
+    expect(cdWorkflow).toContain("bootstrap_first_publish:");
+    expect(cdWorkflow).toContain('PACKAGE_VERSION}" != "0.1.0"');
+    expect(cdWorkflow).toContain('npm view "${PACKAGE_NAME}" name');
+    expect(cdWorkflow).toContain("secrets.NPM_BOOTSTRAP_TOKEN");
+    expect(cdWorkflow).toContain("trap cleanup EXIT");
+    expect(cdWorkflow).toContain("--ignore-scripts --userconfig");
+    expect(cdWorkflow).toContain("inputs.bootstrap_first_publish != true");
     expect(cdWorkflow).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/u);
   });
 

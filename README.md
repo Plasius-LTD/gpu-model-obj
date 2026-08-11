@@ -37,8 +37,11 @@ Apache-2.0. See LICENSE, SECURITY.md, and the files under legal/.
 CI keeps the administrative contributor registry outside Git and npm package
 artifacts using exact, case-normalised path checks. CI runs on approved
 self-hosted runners for same-repository pull requests and `main`; fork PR code
-is denied. Publication uses the GitHub-hosted `production` job with Node 24 and
+is denied. Normal publication uses the GitHub-hosted `production` job with Node 24 and
 npm 11.5.1 or newer. It is token-free and proceeds only while the prepared SHA
-is the exact `main` head after successful push-triggered CI. Do not dispatch CD
-until the npm trusted-publisher binding is verified.
+is the exact `main` head after successful push-triggered CI. Because npm cannot
+bind a trusted publisher before the package exists, the initial `0.1.0` release
+has an explicit, package-absence-checked bootstrap path using a short-lived
+credential in `production`. Remove that path and credential immediately after
+the trusted publisher is bound and a later OIDC release is proven.
 <!-- END PLASIUS RELEASE INTEGRITY -->

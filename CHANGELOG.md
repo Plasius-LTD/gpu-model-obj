@@ -9,6 +9,8 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Added a fail-closed, version-`0.1.0`-only first-publication bootstrap that is available solely through `cd.yml` and the `production` environment, refuses an existing npm package, and is removed after trusted publishing is bound.
+
 - **Added**
   - Bootstrapped the dedicated package repository from the schema baseline.
   - Added the gpu.model.conversion.enabled rollout reference and package smoke test.
