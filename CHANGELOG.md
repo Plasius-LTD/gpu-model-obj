@@ -16,9 +16,13 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
   - (placeholder)
 
 - **Fixed**
+  - Removed the completed `0.1.0` first-publication bootstrap and added an
+    exact-commit validation entry point on explicit hosted runners.
   - (placeholder)
 
 - **Security**
+  - Removed the temporary npm credential path; releases now require exact-main
+    npm OIDC trusted publishing with the pinned npm 11.6.2 client.
   - (placeholder)
 
 ## [0.1.0] - 2026-08-30
