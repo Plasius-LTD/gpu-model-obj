@@ -9,7 +9,23 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
-- Added a fail-closed, version-`0.1.0`-only first-publication bootstrap that is available solely through `cd.yml` and the `production` environment, refuses an existing npm package, and is removed after trusted publishing is bound.
+- **Added**
+  - (placeholder)
+
+- **Changed**
+  - (placeholder)
+
+- **Fixed**
+  - Removed the completed `0.1.0` first-publication bootstrap and added an
+    exact-commit validation entry point on explicit hosted runners.
+  - (placeholder)
+
+- **Security**
+  - Removed the temporary npm credential path; releases now require exact-main
+    npm OIDC trusted publishing with the pinned npm 11.6.2 client.
+  - (placeholder)
+
+## [0.1.0] - 2026-08-30
 
 - **Added**
   - Bootstrapped the dedicated package repository from the schema baseline.
@@ -19,14 +35,13 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
   - (placeholder)
 
 - **Changed**
-  - Bound npm publication to the exact prepared `main` commit after successful push-triggered CI.
   - (placeholder)
 
 - **Fixed**
   - (placeholder)
 
 - **Security**
-  - Removed the npm write-token path, added a fail-closed npm 11.5.1-or-newer OIDC guard, and denied fork PR code access to self-hosted CI.
+  - Pinned patched transitive npm dependencies to clear the current audit baseline.
   - Added fail-closed source and npm-package admission for the administrative contributor registry and pinned the CI/CD runtime to Node.js 24.18.0 LTS.
   - Pinned patched transitive build-tool dependencies for the current npm audit advisories.
   - (placeholder)
@@ -360,7 +375,7 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ---
 
-[Unreleased]: https://github.com/Plasius-LTD/schema/compare/v1.2.17...HEAD
+[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.1.0...HEAD
 [1.0.0]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.0
 [1.0.13]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.13
 [1.0.17]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.17
@@ -395,3 +410,4 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 [1.2.15]: https://github.com/Plasius-LTD/schema/releases/tag/v1.2.15
 [1.2.16]: https://github.com/Plasius-LTD/schema/releases/tag/v1.2.16
 [1.2.17]: https://github.com/Plasius-LTD/schema/releases/tag/v1.2.17
+[0.1.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.1.0
