@@ -1,6 +1,6 @@
 {
   "name": "@plasius/gpu-model-obj",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OBJ and MTL import, export, triangulation, and explicit loss reports.",
   "type": "module",
   "sideEffects": false,
