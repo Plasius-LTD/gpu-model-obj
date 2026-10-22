@@ -9,6 +9,20 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- **Added**
+  - (placeholder)
+
+- **Changed**
+  - (placeholder)
+
+- **Fixed**
+  - (placeholder)
+
+- **Security**
+  - (placeholder)
+
+## [0.2.0] - 2026-10-22
+
 - Add bounded canonical OBJ triangle import, strict/tolerant/forensic diagnostics,
   explicit face-loss consent, cancellation/deadlines and runtime acquisition bridge
   (Task #23). Reuse published core 0.7.0 and runtime 0.3.2; no implicit resource I/O.
@@ -493,7 +507,7 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ---
 
-[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.2.0...HEAD
 [1.0.0]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.0
 [1.0.13]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.13
 [1.0.17]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.17
@@ -536,3 +550,4 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 [0.1.5]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.1.5
 [0.1.6]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.1.6
 [0.1.7]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.1.7
+[0.2.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.2.0
