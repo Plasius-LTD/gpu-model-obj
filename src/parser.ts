@@ -78,9 +78,10 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
     clock.check();
     const physical = text.slice(start, end).replace(/\r$/, ""); start = end + 1;
     if (limit(encoder.encode(physical).byteLength > limits.maxLineBytes)) break;
-    const line = physical.split("#", 1)[0]!.trim();
+    const record = physical.split("#", 1)[0]!;
+    if (unsafeText(record)) { issue("OBJ_INVALID_TEXT", "Record contains unsupported control characters."); continue; }
+    const line = record.replace(/^[\t ]+|[\t ]+$/g, "");
     if (!line) continue;
-    if (unsafeText(line)) { issue("OBJ_INVALID_TEXT", "Record contains unsupported control characters."); continue; }
     const tokens = line.split(/[\t ]+/); const command = tokens.shift()!;
     if (["v", "vt", "vn"].includes(command)) {
       if (limit(positions.length + uvs.length + normals.length >= limits.maxSourceElements)) break;

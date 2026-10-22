@@ -160,6 +160,15 @@ describe("bounded canonical OBJ parser", () => {
     expect(oversized.diagnostics[0]!.code).toBe("OBJ_LIMIT_EXCEEDED");
   });
 
+  it.each(["\v","\f","\u2028","\u2029","\u0085","\u2066"])("rejects unsupported record-edge controls before normalization: %j", async control => {
+    for (const record of [control+"v 0 0 0", "v 0 0 0"+control]) {
+      const result=await parseObj(encode(record+"\n"+triangle));
+      expect(result.report.accepted).toBe(false);
+      expect(result.diagnostics.some(d=>d.code==="OBJ_INVALID_TEXT")).toBe(true);
+      expect(result.document).toBeUndefined();
+    }
+  });
+
   it("requires caller loss consent even in tolerant and forensic modes", async () => {
     for (const mode of ["strict", "tolerant", "forensic"] as const) {
       const result = await parseObj(encode(triangle + "f 0 2 3"), {mode});
