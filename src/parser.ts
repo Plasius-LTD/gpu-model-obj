@@ -56,7 +56,9 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   }
   if (limit(input.byteLength > limits.maxInputBytes)) return result();
   // Snapshot before the first await; hashes and parsing observe identical bytes.
-  const bytes = new Uint8Array(input.byteLength); bytes.set(input);
+  const bytes = new Uint8Array(input.byteLength);
+  try { bytes.set(input); }
+  catch { throw new ObjImportError("OBJ_INVALID_INPUT"); }
   let text: string;
   try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
   catch { issue("OBJ_INVALID_UTF8", "Input is not valid UTF-8."); return result(); }
@@ -67,7 +69,9 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   let faces = 0; let outputVertices = 0;
   let start = 0;
   for (let end = 0; end <= text.length && !stopped; end++) {
-    if (limit(end - start > limits.maxLineBytes)) break;
+    const atEnd = end === text.length || text.charCodeAt(end) === 10;
+    const contentLength = end - start - (atEnd && end > start && text.charCodeAt(end - 1) === 13 ? 1 : 0);
+    if (limit(contentLength > limits.maxLineBytes)) break;
     if (end < text.length && text.charCodeAt(end) !== 10) continue;
     lineNumber++;
     if (lineNumber % 128 === 0) await clock.checkpoint();

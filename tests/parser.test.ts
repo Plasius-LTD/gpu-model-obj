@@ -144,6 +144,22 @@ describe("bounded canonical OBJ parser", () => {
     expect((await pending).report.accepted).toBe(true);
   });
 
+  it("returns the fixed invalid-input code for detached byte arrays", async () => {
+    const bytes = encode(triangle);
+    structuredClone(bytes.buffer, {transfer:[bytes.buffer]});
+    await expect(parseObj(bytes)).rejects.toMatchObject({code:"OBJ_INVALID_INPUT",message:"OBJ import: OBJ_INVALID_INPUT"});
+  });
+
+  it("counts line content equally at exact LF and CRLF byte boundaries", async () => {
+    const body = "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3";
+    for (const text of [body,body.replaceAll("\n","\r\n"),body.replaceAll("\n","\r\n")+"\r\n"]) {
+      const result=await parseObj(encode(text),{limits:{maxLineBytes:7}});
+      expect(result.report.accepted).toBe(true);
+    }
+    const oversized=await parseObj(encode("v 0 0 00\r\n"+triangle),{limits:{maxLineBytes:7}});
+    expect(oversized.diagnostics[0]!.code).toBe("OBJ_LIMIT_EXCEEDED");
+  });
+
   it("requires caller loss consent even in tolerant and forensic modes", async () => {
     for (const mode of ["strict", "tolerant", "forensic"] as const) {
       const result = await parseObj(encode(triangle + "f 0 2 3"), {mode});
