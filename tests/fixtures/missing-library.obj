@@ -1,0 +1,7 @@
+# Synthetic Plasius LTD fixture; Apache-2.0.
+mtllib absent-library.mtl
+v 0 0 0
+v 1 0 0
+v 0 1 0
+usemtl unavailable
+f 1 2 3
