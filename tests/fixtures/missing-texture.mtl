@@ -1,0 +1,4 @@
+# Synthetic Plasius LTD fixture; Apache-2.0.
+newmtl textured
+Kd 1 1 1
+map_Kd absent-texture.png

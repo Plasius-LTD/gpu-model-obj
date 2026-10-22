@@ -1,0 +1,6 @@
+# Synthetic Plasius LTD fixture; Apache-2.0.
+newmtl red
+Kd 1 0 0
+
+newmtl blue
+Kd 0 0 1

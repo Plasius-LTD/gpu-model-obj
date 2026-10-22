@@ -9,6 +9,8 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Add the authored OBJ/MTL bootstrap corpus, semantic fixture checks and canonical adapter implementation plan (site #1166). Public runtime exports remain bootstrap metadata.
+
 - **Added**
   - (placeholder)
 

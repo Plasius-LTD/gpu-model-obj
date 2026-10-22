@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "authorship": "repository-authored",
+  "license": "Apache-2.0",
+  "adapterConformance": "pending",
+  "cases": [
+    {
+      "id": "triangle",
+      "files": [
+        {
+          "path": "triangle.obj",
+          "sha256": "b1729be61d32471b9c4ee1e6dc85f3816513a440b16d74a34e9461337821c7b9"
+        }
+      ],
+      "expectedOutcome": "Import one triangle; no authored normals. Missing-normal generation must follow the explicit smoothing policy."
+    },
+    {
+      "id": "malformed-indices",
+      "files": [
+        {
+          "path": "malformed-indices.obj",
+          "sha256": "00077c2b48b2c49641c3e01c6d8bbd74aca575d0c9f87d7ada3a28370b83ce6b"
+        }
+      ],
+      "expectedOutcome": "Reject zero and out-of-range indices in strict mode; any permitted tolerant face drop must be diagnosed. Never dereference invalid indices."
+    },
+    {
+      "id": "missing-library",
+      "files": [
+        {
+          "path": "missing-library.obj",
+          "sha256": "f74a29741c7db749e968361c9146d584a569f518ffaf4f1a5d77ff3f9a3356da"
+        }
+      ],
+      "expectedOutcome": "A caller-controlled resolver reports absent-library.mtl missing. Strict fails; tolerant geometry-only recovery needs a missing-resource diagnostic. No implicit I/O."
+    },
+    {
+      "id": "missing-texture",
+      "files": [
+        {
+          "path": "missing-texture.obj",
+          "sha256": "c7d5011202aa8c31c8fca5681794d3ef02606887ff0e2b550a9fb2e34f9ae671"
+        },
+        {
+          "path": "missing-texture.mtl",
+          "sha256": "137f658058e3e160622682dc40911882ae3826d51aaf07dff4d0ea62365c84b0"
+        }
+      ],
+      "expectedOutcome": "Retain the relative map reference; a caller-controlled resolver reports absent-texture.png missing. No implicit I/O or silent substituted texture."
+    },
+    {
+      "id": "ngon",
+      "files": [
+        {
+          "path": "ngon.obj",
+          "sha256": "6f6cf181bd64ead84c3f5d7a8556ec0b4b30e0412858b2ba7974afe69a5e5d11"
+        }
+      ],
+      "expectedOutcome": "Retain the five-vertex polygon until triangulation policy is selected; derived triangles must preserve area and winding deterministically."
+    },
+    {
+      "id": "multi-material",
+      "files": [
+        {
+          "path": "multi-material.obj",
+          "sha256": "63254790334b4ed170286d2d2bdc8e3b31485b7ffc075d389bb4ccf8b438ff88"
+        },
+        {
+          "path": "multi-material.mtl",
+          "sha256": "9f862e86de635a77908a3c90366c06d3b5e1603f0879beb7b133c10e404e4817"
+        }
+      ],
+      "expectedOutcome": "Keep the red and blue face bindings and diffuse values through OBJ plus MTL export and reimport with semantic equivalence."
+    },
+    {
+      "id": "smoothing-groups",
+      "files": [
+        {
+          "path": "smoothing-groups.obj",
+          "sha256": "c80dabb68bbb65307691f6d7007e59b0d1235561af4f97a1fc5b95a60453dacd"
+        }
+      ],
+      "expectedOutcome": "Preserve s off and s 1 transitions; missing normals require the documented hard/smooth boundary policy."
+    }
+  ]
+}
