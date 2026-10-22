@@ -6,3 +6,4 @@
 - [ADR-0004: Field Exposure Metadata and Public Serialization](./adr-0004-field-exposure-and-public-serialization.md)
 - [ADR-0005: Hosted OIDC Package Publication](./adr-0005-hosted-oidc-package-publication.md)
 - [ADR-0006: OBJ Bootstrap Fixtures and Ownership](./adr-0006-obj-bootstrap-fixtures-and-ownership.md)
+- [ADR-0007: Bounded Canonical OBJ Triangle Import](./adr-0007-bounded-canonical-obj-parser.md)
