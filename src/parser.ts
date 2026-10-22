@@ -82,7 +82,7 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
       if (limit(positions.length + uvs.length + normals.length >= limits.maxSourceElements)) break;
       const values = tokens.map(numeric);
       const size = command === "vt" ? 2 : 3;
-      const homogeneous = command === "v" && tokens.length === 4 && values[3] === 1;
+      const homogeneous = command === "v" && tokens.length === 4 && Number(tokens[3]) === 1;
       if ((!homogeneous && tokens.length !== size) || values.some(value => value === undefined) || (command === "vn" && values.every(value => value === 0))) {
         issue("OBJ_INVALID_VERTEX", "Source element is malformed or outside the supported finite f32 profile.");
         // Reject the entire import: removing a source element would shift indices.

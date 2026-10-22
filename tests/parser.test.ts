@@ -74,7 +74,7 @@ describe("bounded canonical OBJ parser", () => {
     expect(result.document!.accessors[0]!.count).toBe(3);
   });
 
-  it.each(["v NaN 0 0", "v Infinity 0 0", "v 1e40 0 0", "v 1e-60 0 0", "v 1e-999 0 0", "v 0 0", "v 0 0 0 2", "vt 0 0 1", "vn 0 0 0", "v 0x10 0 0", "v 0 0 0 1 1 1"])("rejects unsupported/malformed numeric data: %s", async record => {
+  it.each(["v NaN 0 0", "v Infinity 0 0", "v 1e40 0 0", "v 1e-60 0 0", "v 1e-999 0 0", "v 0 0", "v 0 0 0 2", "v 0 0 0 1.00000001", "vt 0 0 1", "vn 0 0 0", "v 0x10 0 0", "v 0 0 0 1 1 1"])("rejects unsupported/malformed numeric data: %s", async record => {
     const result = await parseObj(encode(record + "\n" + triangle), { mode: "tolerant", allowLoss: true });
     expect(result.report.accepted).toBe(false);
     expect(result.document).toBeUndefined();
