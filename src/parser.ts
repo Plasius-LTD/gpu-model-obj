@@ -141,8 +141,14 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   const base = result();
   if (!base.report.accepted || stopped) return base;
   await clock.checkpoint();
-  const sourceHash = await sha256Hex(bytes); clock.check();
-  const document = await projectObj(groups, libraryNames, sourceHash, clock.check, clock.checkpoint, signal);
-  clock.check();
-  return Object.freeze({ ...base, document });
+  try {
+    const sourceHash = await sha256Hex(bytes); clock.check();
+    const document = await projectObj(groups, libraryNames, sourceHash, clock.check, clock.checkpoint, signal);
+    clock.check();
+    return Object.freeze({ ...base, document });
+  } catch (error) {
+    clock.check();
+    if (error instanceof ObjImportError) throw error;
+    throw new ObjImportError("OBJ_CANONICAL_VALIDATION_FAILED");
+  }
 }

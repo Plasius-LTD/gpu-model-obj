@@ -192,6 +192,20 @@ describe("bounded canonical OBJ parser", () => {
     await expect(parseObj(input, {timeoutMs:1})).rejects.toMatchObject({code:"OBJ_DEADLINE_EXCEEDED"});
   });
 
+  it("sanitizes both source-hash and core-resource verification failures", async () => {
+    const native = globalThis.crypto.subtle.digest.bind(globalThis.crypto.subtle);
+    for (const failAt of [1,3]) {
+      let calls = 0;
+      const digest = vi.spyOn(globalThis.crypto.subtle,"digest").mockImplementation((...args) => {
+        if (++calls === failAt) return Promise.reject(new Error("private provider detail"));
+        return native(...args);
+      });
+      try {
+        await expect(parseObj(encode(triangle))).rejects.toMatchObject({code:"OBJ_CANONICAL_VALIDATION_FAILED",message:"OBJ import: OBJ_CANONICAL_VALIDATION_FAILED"});
+      } finally { digest.mockRestore(); }
+    }
+  });
+
   it("bridges the runtime acquisition port without invoking related-resource resolution", async () => {
     const adapter = createObjRuntimeAdapter();
     const registry = new AdapterRegistry().register({formatId:"obj", load:async () => adapter});
