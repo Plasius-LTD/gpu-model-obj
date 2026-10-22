@@ -52,20 +52,30 @@ describe("OBJ bootstrap corpus", () => {
   it("keeps deliberately missing material and texture resources absent", () => {
     const missingLibrary = lines("missing-library.obj", "mtllib");
     expect(missingLibrary).toEqual(["absent-library.mtl"]);
-    expect(existsSync(resolve(root, missingLibrary[0]))).toBe(false);
+    const missingLibraryName = missingLibrary[0];
+    if (missingLibraryName === undefined) throw new Error("Missing fixture library reference");
+    expect(existsSync(resolve(root, missingLibraryName))).toBe(false);
     const material = lines("missing-texture.obj", "mtllib");
     expect(material).toEqual(["missing-texture.mtl"]);
-    expect(lines(material[0], "map_Kd")).toEqual(["absent-texture.png"]);
-    expect(existsSync(resolve(dirname(resolve(root, material[0])), "absent-texture.png"))).toBe(false);
+    const materialName = material[0];
+    if (materialName === undefined) throw new Error("Missing fixture material reference");
+    expect(lines(materialName, "map_Kd")).toEqual(["absent-texture.png"]);
+    expect(existsSync(resolve(dirname(resolve(root, materialName)), "absent-texture.png"))).toBe(false);
   });
 
   it("retains an untriangulated five-vertex face and its winding", () => {
-    const vertices = lines("ngon.obj", "v").map(line => line.split(" ").map(Number));
+    const vertices = lines("ngon.obj", "v").map(line => {
+      const values = line.split(" ").map(Number);
+      const [x, y, z] = values;
+      if (values.length !== 3 || x === undefined || y === undefined || z === undefined) throw new Error("Malformed fixture vertex");
+      return [x, y, z] as const;
+    });
     expect(vertices).toHaveLength(5);
     expect(vertices.every(vertex => vertex.length === 3 && vertex[2] === 0)).toBe(true);
     expect(lines("ngon.obj", "f")).toEqual(["1 2 3 4 5"]);
     const twiceArea = vertices.reduce((sum, v, i) => {
       const next = vertices[(i + 1) % vertices.length];
+      if (next === undefined) throw new Error("Missing fixture polygon vertex");
       return sum + v[0] * next[1] - next[0] * v[1];
     }, 0);
     expect(twiceArea).toBe(10);

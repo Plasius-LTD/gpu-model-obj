@@ -9,6 +9,10 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Add bounded canonical OBJ triangle import, strict/tolerant/forensic diagnostics,
+  explicit face-loss consent, cancellation/deadlines and runtime acquisition bridge
+  (Task #23). Reuse published core 0.7.0 and runtime 0.3.2; no implicit resource I/O.
+
 - **Added**
   - (placeholder)
 

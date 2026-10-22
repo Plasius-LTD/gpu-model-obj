@@ -102,5 +102,9 @@
   },
   "engines": {
     "node": ">=24"
+  },
+  "dependencies": {
+    "@plasius/gpu-model-core": "0.7.0",
+    "@plasius/gpu-model-runtime": "0.3.2"
   }
 }
