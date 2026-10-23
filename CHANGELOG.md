@@ -9,6 +9,20 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- **Added**
+  - (placeholder)
+
+- **Changed**
+  - (placeholder)
+
+- **Fixed**
+  - (placeholder)
+
+- **Security**
+  - (placeholder)
+
+## [0.4.0] - 2026-10-23
+
 - Add opt-in bounded MTL diffuse/emissive/opacity import into canonical material
   bindings and deterministic paired OBJ/MTL export with actual bytes, aggregate
   budgets, explicit missing/duplicate/numeric/advanced-loss policy, and public
@@ -530,7 +544,7 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ---
 
-[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.4.0...HEAD
 [1.0.0]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.0
 [1.0.13]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.13
 [1.0.17]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.17
@@ -575,3 +589,4 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 [0.1.7]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.1.7
 [0.2.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.2.0
 [0.3.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.3.0
+[0.4.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.4.0
