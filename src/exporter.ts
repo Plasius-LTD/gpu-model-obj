@@ -123,7 +123,8 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
       const material = primitive.materialId ? reference(materialNames.get(primitive.materialId) ?? primitive.materialId, "") : metadata?.materialName === undefined ? "" : reference(metadata.materialName, "");
       if (material || previousMaterial) emit("usemtl " + (material || "off"));
       previousMaterial = material;
-      emit("s " + reference(metadata?.smoothing, "off"));
+      const smoothing = reference(metadata?.smoothing, "off", true);
+      emit("s " + (smoothing === "0" ? "off" : smoothing === "on" ? "1" : smoothing));
       const reader = read(primitive); exportLimit(outputVertices + reader.count > policy.limits.maxOutputVertices); outputVertices += reader.count;
       for (let face = 0; face < reader.count; face += 3) {
         if (face % 384 === 0) await clock.checkpoint();
