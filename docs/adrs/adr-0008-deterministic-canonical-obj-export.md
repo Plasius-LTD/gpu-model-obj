@@ -44,7 +44,8 @@ document `materialLibraries` as inert references. Object fallback is node name,
 mesh name, then canonical node ID. Emit explicit group/smoothing state for every
 primitive, and `usemtl off` when clearing a previous material reference. On import,
 this parser retains `off` as inert metadata; it does not bind a material named off.
-Canonical material bindings take precedence over inert source hints. No MTL or
+Canonical material binding IDs take precedence over inert source hints; display
+names are not used as IDs because they need not be unique. No MTL or
 texture file is included. Any canonical material definitions cause one explicit
 `dropped` loss, requiring `allowLoss: true` even in strict mode. Task25 owns actual
 MTL mapping; Task26 owns related-resource resolution. Rigs, skins, blend shapes,

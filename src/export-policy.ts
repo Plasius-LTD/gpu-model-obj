@@ -46,9 +46,9 @@ export function exportPolicy(options: ObjExportOptions) {
       (limits as Record<keyof ObjExportLimits, number>)[key] = value;
     }
   }
-  const mode = data.mode ?? "strict";
-  const allowLoss = data.allowLoss ?? false;
-  const timeoutMs = data.timeoutMs ?? 30_000;
+  const mode = data.mode === undefined ? "strict" : data.mode;
+  const allowLoss = data.allowLoss === undefined ? false : data.allowLoss;
+  const timeoutMs = data.timeoutMs === undefined ? 30_000 : data.timeoutMs;
   if (mode !== "strict" && mode !== "tolerant" && mode !== "forensic" || typeof allowLoss !== "boolean" || typeof timeoutMs !== "number" || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000 || data.signal !== undefined && !(data.signal instanceof AbortSignal)) throw new ObjExportError(code);
   return { limits, mode: mode as GpuModelDiagnosticMode, allowLoss, timeoutMs, signal: data.signal as AbortSignal | undefined };
 }
@@ -59,7 +59,7 @@ export function exportTarget(target: ModelTarget): { kind: "blob" | "array-buffe
   if (data.kind !== "blob" && data.kind !== "array-buffer" && data.kind !== "uint8-array") throw new ObjExportError(code);
   if (data.kind !== "blob" && Reflect.ownKeys(data).length !== 1) throw new ObjExportError(code);
   if (data.mimeType !== undefined && data.mimeType !== "text/plain") throw new ObjExportError(code);
-  const fileName = data.fileName ?? "model.obj";
+  const fileName = data.fileName === undefined ? "model.obj" : data.fileName;
   if (typeof fileName !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}\.obj$/.test(fileName)) throw new ObjExportError(code);
   return { kind: data.kind, fileName };
 }

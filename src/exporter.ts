@@ -53,7 +53,6 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
       for (const library of libraries) emit("mtllib " + reference(library, "", true));
     }
     let previousObject: string | undefined; let previousMaterial = "";
-    const materials = new Map(document.materials.map(m => [m.id, m]));
     for (const entry of scene) {
       await clock.checkpoint();
       const primitive = entry.primitive; const metadata = primitive.metadata;
@@ -62,8 +61,8 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
       const groups = metadata?.groups ?? [];
       if (!Array.isArray(groups) || groups.length > 16 || groups.map(g => typeof g === "string" ? g : "").join(" ").length > 256) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
       emit("g" + (groups.length ? " " + groups.map(g => reference(g, "", true)).join(" ") : ""));
-      const canonicalMaterial = primitive.materialId ? materials.get(primitive.materialId)! : undefined;
-      const material = canonicalMaterial ? reference(canonicalMaterial.name, canonicalMaterial.id) : metadata?.materialName === undefined ? "" : reference(metadata.materialName, "");
+      // Binding IDs, rather than non-unique display names, preserve material identity.
+      const material = primitive.materialId ? reference(primitive.materialId, "") : metadata?.materialName === undefined ? "" : reference(metadata.materialName, "");
       if (material || previousMaterial) emit("usemtl " + (material || "off"));
       previousMaterial = material;
       emit("s " + reference(metadata?.smoothing, "off"));

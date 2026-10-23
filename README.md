@@ -104,7 +104,8 @@ produce a rejected core report with no partial output.
 Object/group/material/library/smoothing references are preserved as inert asset
 text. A missing object name falls back to node name, mesh name, then node ID;
 clearing a previous material emits `usemtl off`. Parser reimport retains that off
-marker as metadata. Canonical material bindings take precedence over source hints.
+marker as metadata. Canonical material binding IDs take precedence over source hints; display names
+are not used as IDs because they need not be unique.
 Canonical material **definitions** are not exported yet: a `dropped` loss requires
 explicit `allowLoss: true`. No MTL/texture file is included. Rigs, skins, animation,
 blend shapes, textures and analytic geometry are rejected even with consent;

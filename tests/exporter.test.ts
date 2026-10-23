@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGpuModelDocument, createAndVerifyGpuModelDocument, createModelConversionRegistry, createModelResultBase, isGpuModelDocument, type GpuModelMetadata, type GpuModelDocument, type ModelTarget, type GpuModelResourceVerificationPort } from "@plasius/gpu-model-core";
+import { createGpuModelDocument, createAndVerifyGpuModelDocument, createModelConversionRegistry, createModelResultBase, isGpuModelDocument, verifyGpuModelResource, type GpuModelMetadata, type GpuModelDocument, type ModelTarget, type GpuModelResourceVerificationPort } from "@plasius/gpu-model-core";
 import { sha256Hex } from "@plasius/gpu-model-runtime";
 import { parseObj, exportObj, OBJ_EXPORT_LIMITS } from "../src/index.js";
 
@@ -95,18 +95,19 @@ describe("deterministic canonical OBJ exporter", () => {
     expect(await values(reimport, "NORMAL")).toEqual([[0,0,0.25,0,0,0.25,0,0,0.25]]);
   });
 
-  it("supports verified indexed/interleaved f32 geometry with little-endian indices", async () => {
+  it.each(["u8","u16","u32"] as const)("supports verified interleaved geometry with little-endian %s indices", async componentType => {
     const doc = await model();
-    const bytes = new Uint8Array(54); const view = new DataView(bytes.buffer);
+    const size=componentType === "u8" ? 1 : componentType === "u16" ? 2 : 4;
+    const bytes = new Uint8Array(48+3*size); const view = new DataView(bytes.buffer);
     [0,0,0,99, 1,0,0,99, 0,1,0,99].forEach((n,i) => view.setFloat32(i*4,n,true));
-    [2,0,1].forEach((n,i) => view.setUint16(48+i*2,n,true));
+    [2,0,1].forEach((n,i) => {if(size===1)view.setUint8(48+i,n);else if(size===2)view.setUint16(48+i*2,n,true);else view.setUint32(48+i*4,n,true);});
     const port: GpuModelResourceVerificationPort = {
       async digestSha256(chunks) { const all=[];for await(const c of chunks) all.push(...c);return sha256Hex(new Uint8Array(all)); },
       async inspectResource(chunks) {for await(const _c of chunks) void _c;return {valid:true,detectedMimeType:"application/octet-stream"};},
     };
     const indexed = await createAndVerifyGpuModelDocument({ ...doc,
-      resources: [{id:"b",kind:"buffer",byteLength:54,contentHash:await sha256Hex(bytes),mimeType:"application/octet-stream",payload:new Blob([bytes.buffer])}],
-      accessors:[{id:"p",resourceId:"b",byteOffset:0,byteStride:16,count:3,componentType:"f32",elementType:"vec3",min:[0,0,0],max:[1,1,0]},{id:"i",resourceId:"b",byteOffset:48,count:3,componentType:"u16",elementType:"scalar"}],
+      resources: [{id:"b",kind:"buffer",byteLength:bytes.byteLength,contentHash:await sha256Hex(bytes),mimeType:"application/octet-stream",payload:new Blob([bytes.buffer])}],
+      accessors:[{id:"p",resourceId:"b",byteOffset:0,byteStride:16,count:3,componentType:"f32",elementType:"vec3",min:[0,0,0],max:[1,1,0]},{id:"i",resourceId:"b",byteOffset:48,count:3,componentType,elementType:"scalar"}],
       meshes:[{id:"mesh",primitives:[{id:"p",topology:"triangles",indicesAccessorId:"i",attributes:[{semantic:"POSITION",accessorId:"p"}]}]}],
     },port);
     const reimport = await model(await textOf(await exportObj(indexed,target)));
@@ -121,7 +122,7 @@ describe("deterministic canonical OBJ exporter", () => {
     await expect(exportObj({...await model()},target)).rejects.toMatchObject({code:"OBJ_EXPORT_INVALID_DOCUMENT"});
   });
 
-  it.each([null,{}, {kind:"blob",unknown:1},{kind:"blob",mimeType:"text/html"},{kind:"blob",fileName:"../private.obj"},{kind:"uint8-array",path:"private"},{kind:"file-path",path:"private"},{kind:"stream",stream:{}},{kind:"package",packageFormat:"zip"}])("rejects malformed/unsupported targets without values in errors", async bad => {
+  it.each([null,{}, {kind:"blob",fileName:null},{kind:"blob",unknown:1},{kind:"blob",mimeType:"text/html"},{kind:"blob",fileName:"../private.obj"},{kind:"uint8-array",path:"private"},{kind:"file-path",path:"private"},{kind:"stream",stream:{}},{kind:"package",packageFormat:"zip"}])("rejects malformed/unsupported targets without values in errors", async bad => {
     await expect(exportObj(await model(),bad as ModelTarget)).rejects.toMatchObject({code:"OBJ_EXPORT_INVALID_TARGET",message:"OBJ export: OBJ_EXPORT_INVALID_TARGET"});
   });
 
@@ -133,7 +134,7 @@ describe("deterministic canonical OBJ exporter", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
-  it.each([null,{mode:"invalid"},{allowLoss:"yes"},{timeoutMs:0},{timeoutMs:30001},{signal:{}},{limits:{maxOutputBytes:0}},{limits:{maxOutputBytes:8*1024*1024+1}},{limits:{unknown:1}},{unknown:1}])("rejects invalid export policy", async bad => {
+  it.each([null,{mode:null},{allowLoss:null},{timeoutMs:null},{mode:"invalid"},{allowLoss:"yes"},{timeoutMs:0},{timeoutMs:30001},{signal:{}},{limits:{maxOutputBytes:0}},{limits:{maxOutputBytes:8*1024*1024+1}},{limits:{unknown:1}},{unknown:1}])("rejects invalid export policy", async bad => {
     await expect(exportObj(await model(),target,bad as never)).rejects.toMatchObject({code:"OBJ_EXPORT_INVALID_OPTIONS"});
   });
 
@@ -153,7 +154,7 @@ describe("deterministic canonical OBJ exporter", () => {
     const rejected=await exportObj(materialDoc,target);
     expect(rejected.output).toBeUndefined();expect(rejected.lossReports).toHaveLength(1);
     const accepted=await exportObj(materialDoc,target,{allowLoss:true});
-    expect(accepted.report.accepted).toBe(true);expect(await textOf(accepted)).toContain("usemtl matte\n");expect(accepted.resourcePackage!.entries).toHaveLength(1);
+    expect(accepted.report.accepted).toBe(true);expect(await textOf(accepted)).toContain("usemtl mat\n");expect(accepted.resourcePackage!.entries).toHaveLength(1);
   });
 
   it("rejects record injection through canonical names and metadata", async () => {
@@ -239,4 +240,29 @@ it("satisfies the published core registry export and resource-manifest contract"
   }]);
   const result=await registry.export("obj",await model(),target);
   expect(result.accepted).toBe(true);expect(result.exported!.target).toBe("uint8-array");expect(result.resourcePackage!.entries[0]!.path).toBe("model.obj");
+});
+
+it("bounds resource/accessor counts before processing or copying payloads", async () => {
+  const doc=await model();const resource=doc.resources[0]!;
+  const port:GpuModelResourceVerificationPort={async digestSha256(chunks){const values:number[]=[];for await(const chunk of chunks)values.push(...chunk);return sha256Hex(new Uint8Array(values));},async inspectResource(chunks){for await(const chunk of chunks)void chunk;return {valid:true,detectedMimeType:"application/octet-stream"};}};
+  const extra=await verifyGpuModelResource({...resource,id:"extra"},port);
+  const resources=modify(doc,{resources:[...doc.resources,extra]});
+  const tooManyResources=await exportObj(resources,target,{limits:{maxResources:1}});
+  expect(tooManyResources.output).toBeUndefined();expect(tooManyResources.diagnostics[0]!.code).toBe("OBJ_EXPORT_LIMIT_EXCEEDED");
+  const accessors=modify(doc,{accessors:[...doc.accessors,{...doc.accessors[0]!,id:"extra"}]});
+  const tooManyAccessors=await exportObj(accessors,target,{limits:{maxAccessors:1}});
+  expect(tooManyAccessors.output).toBeUndefined();expect(tooManyAccessors.diagnostics[0]!.code).toBe("OBJ_EXPORT_LIMIT_EXCEEDED");
+});
+
+it("rejects incompatible attribute representation without inventing conversion", async () => {
+  const doc=await model();const mesh=doc.meshes[0]!;const primitive=mesh.primitives[0]!;
+  const input=modify(doc,{accessors:[...doc.accessors,{id:"uv",resourceId:doc.resources[0]!.id,byteOffset:0,count:3,elementType:"vec2",componentType:"u8",normalized:true}],meshes:[{...mesh,primitives:[{...primitive,attributes:[...primitive.attributes,{semantic:"TEXCOORD_0",accessorId:"uv"}]}]}]});
+  const result=await exportObj(input,target,{allowLoss:true});expect(result.output).toBeUndefined();expect(result.diagnostics[0]!.code).toBe("OBJ_EXPORT_UNSUPPORTED_DATA");
+});
+
+it("keeps canonical material identities distinct when display names collide", async () => {
+  const doc=await model(triangle+"o next\nf 1 2 3");const mesh=doc.meshes[0]!;
+  const materials=["first","second"].map(id=>({id,name:"same display name",workflow:"metallic-roughness" as const,alphaMode:"opaque" as const,baseColorFactor:[1,1,1,1] as const,textures:{},extensions:{},sourceMetadata:{}}));
+  const input=modify(doc,{materials,meshes:[{...mesh,primitives:mesh.primitives.map((p,i)=>({...p,materialId:materials[i]!.id}))}]});
+  const text=await textOf(await exportObj(input,target,{allowLoss:true}));expect(text).toContain("usemtl first\n");expect(text).toContain("usemtl second\n");
 });
