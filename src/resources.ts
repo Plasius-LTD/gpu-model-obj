@@ -11,6 +11,7 @@ export interface ObjResourceReference {
   readonly status: "available" | "unresolved";
   readonly contentHash?: string;
 }
+/** Original MTL map slot paired with a package-root relative identity. */
 export interface ObjTextureReference { readonly command: string; readonly path: string }
 export const MAP_COMMANDS: ReadonlySet<string> = new Set(["map_Ka", "map_Kd", "map_Ks", "map_Ke", "map_Ns", "map_d", "bump", "map_bump", "disp", "decal", "norm", "map_Pr", "map_Pm", "map_Ps"]);
 /** This bounded portable profile rejects rather than normalizes ambiguous paths. */

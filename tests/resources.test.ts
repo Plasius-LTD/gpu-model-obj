@@ -154,6 +154,11 @@ describe("explicit OBJ resource identities", () => {
     const payload = mtl("red.png"); const port: ResourceResolver = { resolve: async path => ({ path: kind === "wrong-path" ? "wrong.mtl" : path, bytes: kind === "not-bytes" ? [] : kind === "oversized" ? new Uint8Array(200) : payload, contentHash: await sha256Hex(payload), rangeSupported: false }) as never };
     const r = await parseObj(obj(), { resources: { resolver: port }, limits: { maxInputBytes: 180 }, allowLoss: true, mode: "tolerant" }); expect(r.document).toBeUndefined(); expect(r.diagnostics.some(d => d.code === "OBJ_INVALID_RESOURCE")).toBe(true);
   });
+  it("applies the material export ceiling across all libraries", async () => {
+    const source = bytes(`mtllib a.mtl b.mtl\nusemtl painted\n${triangle}usemtl blue\nf 1 2 3\n`);
+    const r = await parseObj(source, { resources: {}, materialLibraries: [{ name: "a.mtl", bytes: bytes("newmtl painted\n") }, { name: "b.mtl", bytes: bytes("newmtl blue\n") }] });
+    const out = await exportObj(r.document!, { kind: "uint8-array" }, { includeMaterials: true, limits: { maxMaterials: 1 } }); expect(out.output).toBeUndefined(); expect(out.materialLibraries).toBeUndefined();
+  });
   it("runtime bridge requires explicit opt-in for resource I/O", async () => {
     const port = resolver({ "materials/a.mtl": mtl("red.png"), "materials/red.png": bytes("red") }); const input = { source: { kind: "uint8-array", bytes: obj() }, bytes: obj(), contentHash: await sha256Hex(obj()), rangeSupported: false, resourceResolver: port } as const;
     const context = { signal: new AbortController().signal, mode: "strict", execution: "main", adapterOptions: {} } as const;

@@ -49,6 +49,7 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
     const paired = policy.includeMaterials;
     const materialFiles: ObjMaterialLibrary[] = [];
     const materialNames = new Map<string, string>();
+    if (paired) exportLimit(document.materials.length > policy.limits.maxMaterials);
     if (paired && identities) {
       const libraryPaths = identities.filter(r => r.role === "material").map(r => r.path);
       for (const m of document.materials) {
