@@ -11,7 +11,7 @@ core. `createObjRuntimeAdapter` binds it to runtime acquisition and orchestratio
 Historical `packageName`/`packageBootstrap` exports remain compatible. The
 deterministic `exportObj` geometry exporter is available below.
 Opt-in bounded MTL mapping and explicit safe external-resource identities are available below. Polygon triangulation is described below. Normal generation and
-advanced fidelity reporting remain tracked separately below.
+additional conformance work remains tracked separately below.
 
 ```ts
 import { parseObj } from "@plasius/gpu-model-obj";
@@ -112,7 +112,7 @@ The default reference-only path omits material **definitions** with a `dropped`
 loss requiring explicit `allowLoss: true`. Set `includeMaterials: true` for the
 paired MTL path below. Texture files are not included. Rigs, skins, animation,
 blend shapes, textures and analytic geometry are rejected even with consent;
-Task29 retains its separate advanced fidelity responsibilities. Task26 preserves inert external references as described below.
+Rejected projections now include the canonical loss ledger described below. Task26 preserves inert external references as described below.
 
 `OBJ_EXPORT_LIMITS` bounds aggregate resources (16 MiB), resources (32), accessors
 (512), nodes (4096), primitive instances (128), corners (300,000), unique source
@@ -447,3 +447,41 @@ See [ADR0012](docs/adrs/adr-0012-explicit-missing-normal-policy.md) and the
 [acceptance matrix](docs/designs/obj-normals.md). Rollback uses the consuming remote
 `gpu.model.conversion.enabled` evaluator and pins validated public0.6.0; no local
 flag replaces that control. No capability or new consumer integration is added.
+
+### Unsupported-target fidelity ledger
+
+`exportObj` returns core `lossReports` alongside the blocking unsupported
+diagnostic when a valid canonical document contains semantics outside the OBJ
+profile. Entries describe the **proposed projection**, including on rejected
+exports; they never imply that conversion completed or that data was retained.
+
+| Canonical semantic | Stable code | Result |
+| --- | --- | --- |
+| Skeleton/joint rig | `OBJ_EXPORT_RIG_LOSS` | Rejected; `/skeletons` |
+| Skin weights | `OBJ_EXPORT_SKIN_LOSS` | Rejected; `/skins` |
+| Animation | `OBJ_EXPORT_ANIMATION_LOSS` | Rejected; `/animations` |
+| Blend shapes | `OBJ_EXPORT_BLEND_SHAPE_LOSS` | Rejected; `/blendShapes` |
+| Analytic geometry | `OBJ_EXPORT_ANALYTIC_GEOMETRY_LOSS` | Rejected; `/analyticGeometry` |
+| Canonical texture payloads | `OBJ_EXPORT_TEXTURE_LOSS` | Rejected; `/textures` |
+| Advanced materials on a rejected projection | `MTL_EXPORT_ADVANCED_MATERIAL` | Proposed `dropped` loss; `/materials` |
+| Advanced materials with paired MTL | `MTL_EXPORT_ADVANCED_MATERIAL` | Existing diffuse `approximated` loss per material |
+
+Family entries are aggregated in the order above and use fixed messages and
+structural paths, without authored names, IDs, metadata or payload contents.
+Combined documents report every unsupported family rather than only the first.
+The existing `OBJ_EXPORT_UNSUPPORTED_DATA` diagnostic remains blocking in strict,
+tolerant and forensic modes, even with `allowLoss: true`. No output, resource
+manifest, fabricated retained rig or implicit static-pose conversion is returned.
+
+Paired MTL can still approximate advanced material properties with explicit
+`allowLoss: true` in every mode. Omitted/false consent rejects that approximation.
+Reference-only export retains its existing material-definition omission report.
+Existing f32 geometry/reference round trips remain semantic; byte equality applies
+to repeated exports of the same canonical input, not to original OBJ/MTL source
+spelling, hierarchy, provenance or omitted semantics. No repair is invented.
+
+The consumer's governed `gpu.model.conversion.enabled` evaluator controls adoption.
+Enabled consumers may use the validated public package; disabled or unavailable
+control skips adoption, and rollback disables the consumer path and pins the last
+validated public release. Package fidelity checks are unconditional in all states;
+no environment override or runtime feature-service dependency is added here.

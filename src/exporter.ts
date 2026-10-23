@@ -1,7 +1,7 @@
 import { safeResourcePath, encodeResourcePath } from "./resources.js";
 import { createModelResultBase, isGpuModelDocument, type GpuModelDocument, type GpuModelConversionIssue, type GpuModelMetadataValue, type ModelTarget, type ModelExportResult } from "@plasius/gpu-model-core";
 import { exportPolicy, exportTarget, exportClock, exportLimit, ObjExportError, ObjExportRejection, type ObjExportOptions } from "./export-policy.js";
-import { exportMaterials } from "./materials.js";
+import { exportMaterials, hasAdvancedMaterialSemantics } from "./materials.js";
 import type { ObjMaterialLibrary } from "./policy.js";
 import { exportScene, geometryReader, worldVector } from "./export-geometry.js";
 
@@ -14,6 +14,26 @@ function reference(value: GpuModelMetadataValue | undefined, fallback: string, t
   const text = value === undefined ? fallback : value;
   if (typeof text !== "string" || !text || text.length > 256 || text !== text.trim() || Array.from(text).some(character => { const point = character.codePointAt(0)!; return character === "#" || character === "\\" || point < 32 || point >= 127 && point <= 159 || point >= 0x2028 && point <= 0x202e || point >= 0x2066 && point <= 0x2069; }) || token && /\s/u.test(text)) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
   return text;
+}
+
+/** Proposed losses on rejected projection; never claims a completed conversion. */
+function rejectedTargetLosses(document: GpuModelDocument, issues: GpuModelConversionIssue[]): void {
+  const families = [
+    [document.skeletons.length || document.joints.length, "RIG", "/skeletons"],
+    [document.skins.length, "SKIN", "/skins"],
+    [document.animations.length, "ANIMATION", "/animations"],
+    [document.blendShapes.length, "BLEND_SHAPE", "/blendShapes"],
+    [document.analyticGeometry.length, "ANALYTIC_GEOMETRY", "/analyticGeometry"],
+    [document.textures.length, "TEXTURE", "/textures"],
+  ] as const;
+  for (const [count, category, path] of families) if (count) issues.push({
+    kind: "loss", effect: "dropped", code: `OBJ_EXPORT_${category}_LOSS`, path,
+    message: "The OBJ target cannot retain this canonical semantic; export was rejected.",
+  });
+  if (!issues.some(issue => issue.code === "MTL_EXPORT_ADVANCED_MATERIAL") && document.materials.some(hasAdvancedMaterialSemantics)) issues.push({
+    kind: "loss", effect: "dropped", code: "MTL_EXPORT_ADVANCED_MATERIAL", path: "/materials",
+    message: "Advanced material semantics cannot be retained by this rejected OBJ projection.",
+  });
 }
 
 /** Core export result with optional actual material-file bytes. */
@@ -150,6 +170,7 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
     clock.check();
     if (error instanceof ObjExportError) throw error;
     if (!(error instanceof ObjExportRejection)) throw new ObjExportError("OBJ_EXPORT_RESOURCE_FAILED");
+    if (error.code === "OBJ_EXPORT_UNSUPPORTED_DATA") rejectedTargetLosses(document, issues);
     issues.push({ kind: "unsupported", code: error.code, message: "Canonical data cannot be represented within the declared OBJ export profile.", path: "/export" });
     return result();
   }
