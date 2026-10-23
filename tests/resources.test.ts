@@ -159,6 +159,19 @@ describe("explicit OBJ resource identities", () => {
     const r = await parseObj(source, { resources: {}, materialLibraries: [{ name: "a.mtl", bytes: bytes("newmtl painted\n") }, { name: "b.mtl", bytes: bytes("newmtl blue\n") }] });
     const out = await exportObj(r.document!, { kind: "uint8-array" }, { includeMaterials: true, limits: { maxMaterials: 1 } }); expect(out.output).toBeUndefined(); expect(out.materialLibraries).toBeUndefined();
   });
+  it.each([false, true])("rejects mismatched declared libraries before output (paired=%s)", async includeMaterials => {
+    const r = await parseObj(obj(), options());
+    for (const declared of [["other.mtl"], [], ["materials/a.mtl", "extra.mtl"], "not-an-array"]) {
+      const d = createGpuModelDocument({ ...r.document!, metadata: { ...r.document!.metadata, materialLibraries: declared } });
+      const out = await exportObj(d, { kind: "uint8-array" }, { includeMaterials, allowLoss: true }); expect(out.output).toBeUndefined(); expect(out.materialLibraries).toBeUndefined();
+    }
+    const metadata = { ...r.document!.metadata }; delete metadata.materialLibraries;
+    const d = createGpuModelDocument({ ...r.document!, metadata }); expect((await exportObj(d, { kind: "blob" }, { includeMaterials, allowLoss: true })).output).toBeUndefined();
+  });
+  it("accepts duplicate equivalent library declarations with one manifest identity", async () => {
+    const r = await parseObj(obj(), options()); const d = createGpuModelDocument({ ...r.document!, metadata: { ...r.document!.metadata, materialLibraries: ["materials/a.mtl", "materials/a.mtl"] } });
+    const out = await exportObj(d, { kind: "uint8-array" }, { includeMaterials: true, allowLoss: true }); expect(out.output).toBeDefined(); expect(out.materialLibraries).toHaveLength(1); expect(out.resourcePackage!.entries.filter(e => e.role === "material")).toHaveLength(1);
+  });
   it("runtime bridge requires explicit opt-in for resource I/O", async () => {
     const port = resolver({ "materials/a.mtl": mtl("red.png"), "materials/red.png": bytes("red") }); const input = { source: { kind: "uint8-array", bytes: obj() }, bytes: obj(), contentHash: await sha256Hex(obj()), rangeSupported: false, resourceResolver: port } as const;
     const context = { signal: new AbortController().signal, mode: "strict", execution: "main", adapterOptions: {} } as const;

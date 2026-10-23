@@ -38,7 +38,7 @@ Paired export preserves declared library paths and actual multiple MTL files.
 Map paths are rebased only within their declaring directory, with no upward
 traversal. Return a directory manifest for external texture identities, not a
 pretend archive or texture payload. Validate all caller-created source metadata
-and stage output atomically. Keep the single-file convenience and old generated
+and compare the distinct declared-library set with material-role manifest identities before any output. Stage output atomically. Keep the single-file convenience and old generated
 model.mtl behavior for the pre-resource material profile.
 
 ## Alternatives
