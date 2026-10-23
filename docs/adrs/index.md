@@ -8,3 +8,5 @@
 - [ADR-0006: OBJ Bootstrap Fixtures and Ownership](./adr-0006-obj-bootstrap-fixtures-and-ownership.md)
 - [ADR-0007: Bounded Canonical OBJ Triangle Import](./adr-0007-bounded-canonical-obj-parser.md)
 - [ADR-0008: Deterministic Canonical OBJ Export](./adr-0008-deterministic-canonical-obj-export.md)
+
+- [ADR 0009: Bounded MTL material mapping](adr-0009-bounded-mtl-material-mapping.md)
