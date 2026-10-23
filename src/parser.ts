@@ -1,3 +1,4 @@
+import { createObjTriangulator, ObjTriangulationError } from "./triangulation.js";
 import { resourcePaths, resourceSession } from "./resources.js";
 import { createModelResultBase, type GpuModelConversionIssue, type ModelLoadResult } from "@plasius/gpu-model-core";
 import { sha256Hex } from "@plasius/gpu-model-runtime";
@@ -30,7 +31,7 @@ function unsafeText(text: string): boolean {
   });
 }
 
-/** Parse an owned, bounded UTF-8 triangle OBJ snapshot into canonical core. */
+/** Parse an owned, bounded UTF-8 planar polygon OBJ snapshot into canonical core. */
 export async function parseObj(input: Uint8Array, options: ObjParseOptions = {}): Promise<ModelLoadResult> {
   const startedAt = performance.now();
   const { limits, mode, allowLoss, signal, timeoutMs, materialLibraries, resources } = parserPolicy(options);
@@ -69,7 +70,8 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   const groups: ObjGeometryGroup[] = []; const libraryNames: string[] = [];
   let previousKey: string | undefined;
   let objectName = ""; let groupNames: string[] = []; let materialName = ""; let smoothing = "off";
-  let faces = 0; let outputVertices = 0;
+  let faces = 0; let outputVertices = 0; let polygonFaces = 0;
+  const triangulate = createObjTriangulator(limits, clock);
   let start = 0;
   for (let end = 0; end <= text.length && !stopped; end++) {
     const atEnd = end === text.length || text.charCodeAt(end) === 10;
@@ -116,7 +118,8 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
       }
     } else if (command === "f") {
       if (limit(++faces > limits.maxFaces)) break;
-      if (tokens.length !== 3) { issue("OBJ_UNSUPPORTED_TOPOLOGY", "This import profile requires triangle faces; polygon triangulation is a separate policy."); continue; }
+      if (tokens.length < 3) { issue("OBJ_UNSUPPORTED_TOPOLOGY", "A face requires at least three corners."); continue; }
+      if (limit(tokens.length > limits.maxFaceVertices)) break;
       const corners = tokens.map(token => {
         const parts = token.split("/");
         if (parts.length > 3 || !parts[0] || (parts.length === 2 && !parts[1]) || (parts.length === 3 && !parts[2])) return undefined;
@@ -135,7 +138,17 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
       }
       const valid = corners as { p: number; t: number | undefined; n: number | undefined }[];
       if (valid.some(corner => (corner.t === undefined) !== (valid[0]!.t === undefined) || (corner.n === undefined) !== (valid[0]!.n === undefined))) { issue("OBJ_MIXED_ATTRIBUTES", "A face must use consistent texture/normal index presence."); continue; }
-      if (limit(outputVertices + 3 > limits.maxOutputVertices)) break;
+      const expandedCount = (valid.length - 2) * 3;
+      if (limit(outputVertices + expandedCount > limits.maxOutputVertices)) break;
+      let triangles: number[];
+      try { triangles = await triangulate(valid.map(corner => positions[corner.p]!)); }
+      catch (error) {
+        if (!(error instanceof ObjTriangulationError)) throw error;
+        issue(error.code, "Face violates the bounded simple planar triangulation policy.");
+        if (error.code === "OBJ_LIMIT_EXCEEDED") stopped = true;
+        continue;
+      }
+      if (valid.length > 3) polygonFaces++;
       const key = JSON.stringify([objectName, groupNames, materialName, smoothing, valid[0]!.t !== undefined, valid[0]!.n !== undefined]);
       let group = previousKey === key ? groups.at(-1) : undefined;
       if (!group) {
@@ -143,13 +156,18 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
         group = { objectName, groups: groupNames, materialName, smoothing, positions: [], uvs: [], normals: [] };
         previousKey = key; groups.push(group);
       }
-      for (const corner of valid) {
+      for (const cornerIndex of triangles) {
+        const corner = valid[cornerIndex]!;
         group.positions.push(...positions[corner.p]!);
         if (corner.t !== undefined) group.uvs.push(...uvs[corner.t]!);
         if (corner.n !== undefined) group.normals.push(...normals[corner.n]!);
       }
-      outputVertices += 3;
-    } else issue("OBJ_UNSUPPORTED_RECORD", "Record is outside the supported OBJ triangle profile.");
+      outputVertices += expandedCount;
+    } else issue("OBJ_UNSUPPORTED_RECORD", "Record is outside the supported OBJ polygon profile.");
+  }
+  if (polygonFaces && !stopped) {
+    if (issues.length >= limits.maxDiagnostics) limit(true);
+    else issues.push({ kind: "warning", code: "OBJ_POLYGON_TRIANGULATED", message: "Simple planar polygons were deterministically converted to canonical triangles.", path: "/geometry" });
   }
   if (!outputVertices && !stopped) issue("OBJ_EMPTY_GEOMETRY", "Input has no surviving triangle geometry.");
   if (stopped || !result().report.accepted) return result();

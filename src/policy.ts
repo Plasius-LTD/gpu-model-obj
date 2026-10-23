@@ -7,6 +7,8 @@ export const OBJ_PARSER_LIMITS = Object.freeze({
   maxLineBytes: 4096,
   maxSourceElements: 100_000,
   maxFaces: 100_000,
+  maxFaceVertices: 256,
+  maxTriangulationWork: 1_000_000,
   maxOutputVertices: 300_000,
   maxPrimitiveGroups: 128,
   maxReferences: 32,
@@ -19,7 +21,7 @@ export type ObjParserLimits = { readonly [K in keyof typeof OBJ_PARSER_LIMITS]: 
 /** An inert, caller-owned in-memory MTL file. No path is ever dereferenced. */
 export interface ObjMaterialLibrary { readonly name: string; readonly bytes: Uint8Array }
 
-/** Triangle import policy; no external reads or implicit repair are enabled. */
+/** Bounded planar polygon import policy; no external reads or implicit repair are enabled. */
 export interface ObjParseOptions {
   /** Omit for reference-only compatibility; [] explicitly requests material validation. */
   readonly materialLibraries?: readonly ObjMaterialLibrary[];
