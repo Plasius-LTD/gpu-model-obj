@@ -352,7 +352,7 @@ Paired export preserves those library paths, returns **all actual files** in
 `materialLibrary` remains the single-file convenience when exactly one file is
 returned. Default material-only export still generates `model.mtl` compatibly.
 Caller-created resource metadata is revalidated before any output is returned;
-collisions, inconsistent ownership and cross-directory upward rebasing are
+collisions, mismatched declared-library/manifest identity sets, inconsistent ownership and cross-directory upward rebasing are
 rejected atomically. `resourcePackage` uses `directory-manifest` when external
 textures remain; descriptors never imply image payload inclusion. Reimport the
 actual exported table with `resources: {}` (and consent for unresolved images),

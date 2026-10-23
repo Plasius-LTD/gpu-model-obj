@@ -45,6 +45,13 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
         seen.add(item.path); identities.push({ path: item.path, role: item.role, status: item.status });
       }
     }
+    if (identities) {
+      const declared = document.metadata.materialLibraries === undefined ? [] : document.metadata.materialLibraries;
+      if (!Array.isArray(declared) || declared.length > 32 || !declared.every(path => safeResourcePath(path) && path.endsWith(".mtl"))) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
+      const distinct = new Set(declared);
+      const materialPaths = identities.filter(r => r.role === "material").map(r => r.path);
+      if (distinct.size !== materialPaths.length || materialPaths.some(path => !distinct.has(path))) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
+    }
     if (identities?.some(r => r.role === "texture")) issues.push({ kind: "warning", code: "OBJ_EXPORT_EXTERNAL_TEXTURES", path: "/resources", message: "Texture identities are retained; image payloads must be supplied separately by the caller." });
     const paired = policy.includeMaterials;
     const materialFiles: ObjMaterialLibrary[] = [];
