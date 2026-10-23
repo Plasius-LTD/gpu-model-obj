@@ -1,7 +1,7 @@
 import {
   CANONICAL_GPU_MODEL_COORDINATE_SYSTEM, GPU_MODEL_DOCUMENT_SCHEMA_VERSION,
   createAndVerifyGpuModelDocument,
-  type GpuModelAccessor, type GpuModelPrimitive, type GpuModelDocument,
+  type GpuModelMaterial, type GpuModelAccessor, type GpuModelPrimitive, type GpuModelDocument,
   type GpuModelResourceVerificationPort,
 } from "@plasius/gpu-model-core";
 import { sha256Hex } from "@plasius/gpu-model-runtime";
@@ -11,6 +11,7 @@ export interface ObjGeometryGroup {
   readonly objectName: string;
   readonly groups: string[];
   readonly materialName: string;
+  materialId?: string;
   readonly smoothing: string;
   readonly positions: number[];
   readonly uvs: number[];
@@ -19,7 +20,7 @@ export interface ObjGeometryGroup {
 
 export async function projectObj(
   groups: readonly ObjGeometryGroup[], libraries: readonly string[], sourceHash: string,
-  check: () => void, checkpoint: () => Promise<void>, signal?: AbortSignal,
+  check: () => void, checkpoint: () => Promise<void>, signal?: AbortSignal, materials: readonly GpuModelMaterial[] = [], libraryHashes: readonly { readonly name: string; readonly contentHash: string }[] = [],
 ): Promise<GpuModelDocument> {
   const total = groups.reduce((sum, group) => sum + group.positions.length + group.uvs.length + group.normals.length, 0);
   const bytes = new Uint8Array(total * 4);
@@ -52,7 +53,7 @@ export async function projectObj(
       accessors.push({ id, resourceId: "geometry", byteOffset: start, count: values.length / width, componentType: "f32", elementType: width === 2 ? "vec2" : "vec3", ...(semantic === "POSITION" ? { min: localMin, max: localMax } : {}) });
       attributes.push({ semantic, accessorId: id });
     }
-    primitives.push({ id: `primitive-${index}`, topology: "triangles", attributes,
+    primitives.push({ id: `primitive-${index}`, topology: "triangles", attributes, ...(group.materialId ? { materialId: group.materialId } : {}),
       metadata: { ...(group.objectName ? { objectName: group.objectName } : {}), groups: group.groups, ...(group.materialName ? { materialName: group.materialName } : {}), smoothing: group.smoothing } });
   }
   check();
@@ -77,10 +78,10 @@ export async function projectObj(
       roots: ["root"], nodes: [{ id: "root", children: [], meshId: "mesh", localMatrix: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }],
       resources: [{ id: "geometry", kind: "buffer", contentHash: hash, byteLength: bytes.byteLength, mimeType: "application/octet-stream", payload: new Blob([bytes.buffer], { type: "application/octet-stream" }) }],
       accessors, meshes: [{ id: "mesh", primitives }],
-      materials: [], textures: [], skeletons: [], joints: [], skins: [], blendShapes: [], animations: [], analyticGeometry: [],
+      materials, textures: [], skeletons: [], joints: [], skins: [], blendShapes: [], animations: [], analyticGeometry: [],
       bounds: { min, max },
       provenance: { sourceFormat: "obj", sourceContentHash: sourceHash, converterId: "plasius.gpu-model-obj.triangle-import", converterVersion: "1" },
-      diagnostics: [], metadata: { materialLibraries: libraries, sourceUnit: "unitless", coordinateAssumption: "metre-y-up-right-handed-authored-origin" },
+      diagnostics: [], metadata: { materialLibraries: libraries, ...(libraryHashes.length ? { materialLibraryContentHashes: libraryHashes } : {}), sourceUnit: "unitless", coordinateAssumption: "metre-y-up-right-handed-authored-origin" },
     }, port, { signal });
     check(); return document;
   } catch (error) {

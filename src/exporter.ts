@@ -1,5 +1,7 @@
-import { createModelResultBase, isGpuModelDocument, type GpuModelDocument, type GpuModelConversionIssue, type GpuModelMetadataValue, type ModelTarget, type ModelExportResult, type ModelAdapter } from "@plasius/gpu-model-core";
+import { createModelResultBase, isGpuModelDocument, type GpuModelDocument, type GpuModelConversionIssue, type GpuModelMetadataValue, type ModelTarget, type ModelExportResult } from "@plasius/gpu-model-core";
 import { exportPolicy, exportTarget, exportClock, exportLimit, ObjExportError, ObjExportRejection, type ObjExportOptions } from "./export-policy.js";
+import { exportMaterials } from "./materials.js";
+import type { ObjMaterialLibrary } from "./policy.js";
 import { exportScene, geometryReader, worldVector } from "./export-geometry.js";
 
 /** Declared target support; no file, stream, resolver or archive writer is bundled. */
@@ -13,11 +15,14 @@ function reference(value: GpuModelMetadataValue | undefined, fallback: string, t
   return text;
 }
 
+/** Core export result with optional actual material-file bytes. */
+export interface ObjExportResult extends ModelExportResult { readonly materialLibrary?: ObjMaterialLibrary }
+
 /** Export branded canonical triangle geometry through core's in-memory contracts.
  * Unsupported fidelity produces a rejected report and no output. Materials export
- * as references only, with explicit consent for omitted MTL definitions.
+ * as references by default; includeMaterials returns paired MTL bytes.
  */
-export const exportObj: (document: GpuModelDocument, target: ModelTarget, options?: ObjExportOptions) => ReturnType<ModelAdapter["export"]> = async (document, target, options = {}) => {
+export const exportObj: (document: GpuModelDocument, target: ModelTarget, options?: ObjExportOptions) => Promise<ObjExportResult> = async (document, target, options = {}) => {
   const policy = exportPolicy(options); const destination = exportTarget(target);
   const clock = exportClock(policy.signal, policy.timeoutMs); clock.check();
   if (!isGpuModelDocument(document)) throw new ObjExportError("OBJ_EXPORT_INVALID_DOCUMENT");
@@ -27,7 +32,9 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
     const scene = exportScene(document, policy.limits);
     let totalBytes = 0;
     for (const resource of document.resources) { totalBytes += resource.byteLength; exportLimit(totalBytes > policy.limits.maxResourceBytes); }
-    if (document.materials.length) issues.push({ kind: "loss", effect: "dropped", code: "OBJ_EXPORT_MTL_DEFINITIONS_OMITTED", message: "Material references are preserved; material definitions require the MTL exporter.", path: "/materials" });
+    if (policy.includeMaterials && scene.some(({ primitive }) => !primitive.materialId && primitive.metadata?.materialName !== undefined && primitive.metadata.materialName !== "off")) throw new ObjExportRejection("OBJ_EXPORT_UNSUPPORTED_DATA");
+    const materialOutput = policy.includeMaterials ? exportMaterials(document.materials, policy.limits, issues) : undefined;
+    if (document.materials.length && !policy.includeMaterials) issues.push({ kind: "loss", effect: "dropped", code: "OBJ_EXPORT_MTL_DEFINITIONS_OMITTED", message: "Material references are preserved; material definitions require the MTL exporter.", path: "/materials" });
     if (!result().report.accepted) return result();
     const buffers = new Map<string, DataView>();
     for (const resource of document.resources) {
@@ -36,7 +43,7 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
       clock.check();
     }
     const read = geometryReader(document, buffers);
-    const lines: string[] = []; let outputBytes = 0; let outputVertices = 0;
+    const lines: string[] = []; let outputBytes = materialOutput?.bytes.byteLength ?? 0; let outputVertices = 0;
     const elements = { v: new Map<string, number>(), vt: new Map<string, number>(), vn: new Map<string, number>() };
     const emit = (line: string) => { const record = line + "\n"; outputBytes += encoder.encode(record).byteLength; exportLimit(outputBytes > policy.limits.maxOutputBytes); lines.push(record); };
     const element = (kind: keyof typeof elements, values: readonly number[]) => {
@@ -49,7 +56,8 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
       emit(kind + " " + key); elements[kind].set(key, index); return index;
     };
     emit("# plasius OBJ triangle export 1");
-    const libraries = document.metadata.materialLibraries;
+    if (materialOutput) emit("mtllib model.mtl");
+    const libraries = materialOutput ? undefined : document.metadata.materialLibraries;
     if (libraries !== undefined) {
       if (!Array.isArray(libraries) || libraries.length > 32) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
       for (const library of libraries) emit("mtllib " + reference(library, "", true));
@@ -64,7 +72,7 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
       if (!Array.isArray(groups) || groups.length > 16 || groups.map(g => typeof g === "string" ? g : "").join(" ").length > 256) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
       emit("g" + (groups.length ? " " + groups.map(g => reference(g, "", true)).join(" ") : ""));
       // Binding IDs, rather than non-unique display names, preserve material identity.
-      const material = primitive.materialId ? reference(primitive.materialId, "") : metadata?.materialName === undefined ? "" : reference(metadata.materialName, "");
+      const material = primitive.materialId ? reference(materialOutput?.names.get(primitive.materialId) ?? primitive.materialId, "") : metadata?.materialName === undefined ? "" : reference(metadata.materialName, "");
       if (material || previousMaterial) emit("usemtl " + (material || "off"));
       previousMaterial = material;
       emit("s " + reference(metadata?.smoothing, "off"));
@@ -84,7 +92,7 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
     }
     clock.check(); const bytes = encoder.encode(lines.join("")); clock.check();
     const output = destination.kind === "blob" ? new Blob([bytes.buffer], { type: "text/plain" }) : destination.kind === "array-buffer" ? bytes.buffer : bytes;
-    return { ...result(), output, resourcePackage: { format: "inline", entries: [{ id: "obj", role: "mesh", path: destination.fileName, contentType: "text/plain" }] } };
+    return { ...result(), output, ...(materialOutput ? { materialLibrary: { name: "model.mtl", bytes: materialOutput.bytes } } : {}), resourcePackage: { format: "inline", entries: [{ id: "obj", role: "mesh", path: destination.fileName, contentType: "text/plain" }, ...(materialOutput ? [{ id: "mtl", role: "material" as const, path: "model.mtl", contentType: "text/plain" }] : [])] } };
   } catch (error) {
     clock.check();
     if (error instanceof ObjExportError) throw error;

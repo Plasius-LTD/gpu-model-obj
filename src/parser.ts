@@ -1,5 +1,6 @@
 import { createModelResultBase, type GpuModelConversionIssue, type ModelLoadResult } from "@plasius/gpu-model-core";
 import { sha256Hex } from "@plasius/gpu-model-runtime";
+import { importMaterials } from "./materials.js";
 import { projectObj, type ObjGeometryGroup } from "./canonical.js";
 import { parserClock, parserPolicy, ObjImportError, type ObjParseOptions } from "./policy.js";
 
@@ -30,8 +31,9 @@ function unsafeText(text: string): boolean {
 
 /** Parse an owned, bounded UTF-8 triangle OBJ snapshot into canonical core. */
 export async function parseObj(input: Uint8Array, options: ObjParseOptions = {}): Promise<ModelLoadResult> {
-  const { limits, mode, allowLoss, signal, timeoutMs } = parserPolicy(options);
-  const clock = parserClock(signal, timeoutMs);
+  const startedAt = performance.now();
+  const { limits, mode, allowLoss, signal, timeoutMs, materialLibraries } = parserPolicy(options);
+  const clock = parserClock(signal, timeoutMs, startedAt);
   clock.check();
   if (!(input instanceof Uint8Array)) throw new ObjImportError("OBJ_INVALID_INPUT");
   const sourceBytes = input.byteLength;
@@ -54,7 +56,7 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
       ...(mode === "forensic" ? { rawSource: { sourceBytes, linesVisited: lineNumber, issueCount: issues.length }, maxEvidenceBytes: 65536 } : {}),
     });
   }
-  if (limit(input.byteLength > limits.maxInputBytes)) return result();
+  if (limit(input.byteLength + (materialLibraries?.reduce((sum, file) => sum + file.bytes.byteLength, 0) ?? 0) > limits.maxInputBytes)) return result();
   // Snapshot before the first await; hashes and parsing observe identical bytes.
   const bytes = new Uint8Array(input.byteLength);
   try { bytes.set(input); }
@@ -143,12 +145,20 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
     } else issue("OBJ_UNSUPPORTED_RECORD", "Record is outside the supported OBJ triangle profile.");
   }
   if (!outputVertices && !stopped) issue("OBJ_EMPTY_GEOMETRY", "Input has no surviving triangle geometry.");
+  if (stopped || !result().report.accepted) return result();
+  const materials = materialLibraries === undefined ? { materials: [], libraryHashes: [] } : await importMaterials(materialLibraries, libraryNames, groups, limits, mode, clock, entry => {
+    if (issues.length >= limits.maxDiagnostics) {
+      issues[limits.maxDiagnostics - 1] = { kind: "unsupported", code: "OBJ_LIMIT_EXCEEDED", message: "Diagnostic count exceeded the parser budget.", path: "/diagnostics" };
+      stopped = true;
+    } else issues.push(entry);
+    return !stopped;
+  });
   const base = result();
   if (!base.report.accepted || stopped) return base;
   await clock.checkpoint();
   try {
     const sourceHash = await sha256Hex(bytes); clock.check();
-    const document = await projectObj(groups, libraryNames, sourceHash, clock.check, clock.checkpoint, signal);
+    const document = await projectObj(groups, libraryNames, sourceHash, clock.check, clock.checkpoint, signal, materials.materials, materials.libraryHashes);
     clock.check();
     return Object.freeze({ ...base, document });
   } catch (error) {

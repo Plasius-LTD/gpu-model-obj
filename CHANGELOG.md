@@ -9,6 +9,11 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Add opt-in bounded MTL diffuse/emissive/opacity import into canonical material
+  bindings and deterministic paired OBJ/MTL export with actual bytes, aggregate
+  budgets, explicit missing/duplicate/numeric/advanced-loss policy, and public
+  consumer qualification (Task #25). Reference-only defaults remain compatible.
+
 - **Added**
   - (placeholder)
 

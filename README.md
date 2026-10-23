@@ -10,7 +10,7 @@ This repository is the dedicated package boundary defined by ADR 0094.
 core. `createObjRuntimeAdapter` binds it to runtime acquisition and orchestration.
 Historical `packageName`/`packageBootstrap` exports remain compatible. The
 deterministic `exportObj` geometry exporter is available below.
-MTL mapping, external resources, polygon triangulation, normal generation and
+Opt-in bounded MTL mapping is available below. External resources, polygon triangulation, normal generation and
 advanced fidelity reporting remain tracked separately below.
 
 ```ts
@@ -44,7 +44,7 @@ invalid options/input, abort/deadline, runtime rejection and canonical failure.
 
 `OBJ_PARSER_LIMITS` declares hard ceilings: 8 MiB input, 4096 UTF-8 bytes/line,
 100,000 combined source elements, 100,000 faces, 300,000 expanded vertices,
-128 primitive groups, 32 library references and 64 diagnostic entries. Pass
+128 primitive groups, 128 materials, 32 library references and 64 diagnostic entries. Pass
 `limits` to tighten any ceiling, `signal` for cancellation and `timeoutMs`
 (1–30,000, default 30,000) for the whole parse. The parser copies the input before
 asynchronous work and cooperatively yields while parsing/packing. Core validation
@@ -106,14 +106,16 @@ text. A missing object name falls back to node name, mesh name, then node ID;
 clearing a previous material emits `usemtl off`. Parser reimport retains that off
 marker as metadata. Canonical material binding IDs take precedence over source hints; display names
 are not used as IDs because they need not be unique.
-Canonical material **definitions** are not exported yet: a `dropped` loss requires
-explicit `allowLoss: true`. No MTL/texture file is included. Rigs, skins, animation,
+The default reference-only path omits material **definitions** with a `dropped`
+loss requiring explicit `allowLoss: true`. Set `includeMaterials: true` for the
+paired MTL path below. Texture files are not included. Rigs, skins, animation,
 blend shapes, textures and analytic geometry are rejected even with consent;
-Tasks25–29 retain their separate fidelity and resource responsibilities.
+Tasks26–29 retain their separate fidelity and resource responsibilities.
 
 `OBJ_EXPORT_LIMITS` bounds aggregate resources (16 MiB), resources (32), accessors
 (512), nodes (4096), primitive instances (128), corners (300,000), unique source
-elements (100,000) and UTF-8 output (8 MiB). Tighten using `limits`; `signal` and
+elements (100,000), materials (128) and aggregate UTF-8 output (8 MiB across
+OBJ plus MTL when requested). Tighten using `limits`; `signal` and
 `timeoutMs` (1–30,000 ms) cover the whole operation, including stalled resource
 reads. Output is staged in memory, with cooperative processing checkpoints.
 Caller workers and concurrency limits provide additional execution isolation.
@@ -125,6 +127,87 @@ contains numeric counts only. Asset bytes intentionally retain authored names;
 do not log arbitrary assets or treat them as safe HTML/telemetry. See
 [ADR0008](docs/adrs/adr-0008-deterministic-canonical-obj-export.md) and the
 [exporter plan](docs/designs/obj-exporter.md).
+
+## Opt-in OBJ and MTL material mapping
+
+```ts
+import { parseObj, exportObj } from "@plasius/gpu-model-obj";
+
+// Bytes are admitted/provided by the caller; the package performs no acquisition.
+const loaded = await parseObj(objBytes, {
+  materialLibraries: [{ name: "model.mtl", bytes: mtlBytes }],
+});
+if (loaded.document) {
+  const exported = await exportObj(loaded.document, { kind: "uint8-array" }, {
+    includeMaterials: true,
+  });
+  if (exported.output instanceof Uint8Array && exported.materialLibrary) {
+    // Actual paired bytes, not just a manifest descriptor.
+    const roundTrip = await parseObj(exported.output, {
+      materialLibraries: [exported.materialLibrary],
+    });
+    console.log(roundTrip.report.accepted);
+  }
+}
+```
+
+`materialLibraries` is an explicit in-memory table of `ObjMaterialLibrary`
+(`name`, `bytes`). Omitting it retains the existing geometry/reference-only
+profile. Passing `[]` requests definition/binding validation with no supplied
+files. Only files named by `mtllib` are interpreted, in first reference order;
+the input table's order does not change output. Names are safe, case-sensitive
+basenames matching `[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.mtl`; no directory, URL,
+resolver, filesystem read or fetch is involved. Files are snapshotted before the
+first await. Aggregate OBJ + supplied MTL input uses the 8 MiB ceiling, including
+unreferenced table entries; the table cannot exceed 32 entries or 8 MiB itself.
+An invalid/duplicate table entry throws `OBJ_INVALID_OPTIONS` before parsing.
+Referenced library hashes are retained with names in asset metadata
+`materialLibraryContentHashes`; `provenance.sourceContentHash` remains the exact
+OBJ hash. Do not log arbitrary asset metadata.
+
+The diffuse material profile supports `newmtl`, RGB `Kd`, RGB `Ke` (common
+emissive extension), and scalar dissolve `d` or inverse-transparency `Tr`.
+RGB accepts one value repeated across channels, or exactly three values. `Kd`
+and opacity must be finite in [0,1]; `Ke` must be finite and non-negative. Numeric
+spelling must be decimal, with optional exponent; overflow, underflow to zero,
+inexpressible `Tr` inversion and non-numeric/partial tokens fail. Defaults are
+white diffuse, opaque and zero emission, with canonical metallic 0/roughness 1.
+Material names are single non-whitespace tokens of up to 256 characters, with
+no controls, bidi formatting, `#` or backslash. Canonical IDs are separate stable
+`material-N` identifiers, and face groups receive actual `materialId` bindings.
+`usemtl off` clears a binding unless a supplied material is literally named off.
+
+Duplicate definitions across or within files, repeated supported properties,
+conflicting `d`/`Tr`, invalid UTF-8/names/values and properties before `newmtl`
+block all modes. Unsupported legacy/Phong/PBR/texture statements create explicit
+`dropped` losses and require `allowLoss: true` in every mode. Recognized advanced
+numeric fields are validated before dropping; the profile intentionally limits
+reflectance colours to [0,1], `Ns`/sharpness to [0,1000], `Ni` to [.001,10],
+`illum` to integer [0,10], and PBR scalar fields to [0,1]. Spectral/XYZ colours,
+halo dissolve and texture options are outside this profile. Texture-reference
+preservation is Task26; do not interpret loss consent as texture acquisition.
+
+Missing used definitions (including absent libraries) reject strict mode.
+Tolerant/forensic recovery additionally needs `allowLoss: true`: core's registered
+`malformed-material-reference` repair assigns one canonical default material,
+paired with an appearance-loss report. The unresolved reference stays in asset
+metadata; reports contain only fixed messages/numeric locations. No unregistered
+repair or silent substitute is used. Unused missing libraries do not require a
+default material; only used bindings determine the repair policy.
+
+Paired export returns core-compatible `ObjExportResult`, extending
+`ModelExportResult` with optional `materialLibrary: { name: "model.mtl", bytes }`.
+It emits `mtllib model.mtl`, actual material bytes, matching manifest entries and
+stable LF/decimal spelling in canonical material-array/property order. Safe,
+unique authored names survive; otherwise unique identifiers avoid ambiguous
+bindings and a name-loss report requires consent. Canonical advanced semantics
+also require explicit approximation consent. Reference-only documents without
+canonical definitions cannot use paired export. The same byte/material budgets,
+deadline and cancellation policy cover both files; rejected results expose
+neither file. The runtime acquisition bridge remains reference-only; callers
+needing this material table invoke `parseObj` directly after their own admission.
+See [ADR0009](docs/adrs/adr-0009-bounded-mtl-material-mapping.md) and the
+[material design](docs/designs/obj-materials.md).
 
 ## Bootstrap corpus and implementation
 
