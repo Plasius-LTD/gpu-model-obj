@@ -6,11 +6,11 @@ This repository is the dedicated package boundary defined by ADR 0094.
 
 ## Parser status
 
-`parseObj` imports the bounded triangle OBJ profile into the published canonical
+`parseObj` imports the bounded simple planar polygon OBJ profile into the published canonical
 core. `createObjRuntimeAdapter` binds it to runtime acquisition and orchestration.
 Historical `packageName`/`packageBootstrap` exports remain compatible. The
 deterministic `exportObj` geometry exporter is available below.
-Opt-in bounded MTL mapping and explicit safe external-resource identities are available below. Polygon triangulation, normal generation and
+Opt-in bounded MTL mapping and explicit safe external-resource identities are available below. Polygon triangulation is described below. Normal generation and
 advanced fidelity reporting remain tracked separately below.
 
 ```ts
@@ -26,10 +26,10 @@ if (result.document) {
 ```
 
 The profile accepts `v x y z` (optional homogeneous `1`), `vt u v`, `vn x y z`
-and triangle `f` records with independent positive/negative position/UV/normal
+and simple planar `f` records with independent positive/negative position/UV/normal
 indices. Preserve names from `o`, `g`, `usemtl`, `mtllib` and `s` as inert
 metadata. Default parsing never acquires libraries or textures; explicit resource policy is described below. Missing attributes remain
-absent. Unsupported records, polygons, vertex colours, non-unit weights and
+absent. Unsupported records, ambiguous polygons, vertex colours, non-unit weights and
 mixed attribute presence within a face fail explicitly. OBJ's unitless values
 are assumed to use metres/Y-up/right-handed coordinates at the authored origin;
 the separate static-demo floor-centred profile needs explicit normalization.
@@ -43,7 +43,8 @@ names and should not be logged as telemetry. Fixed-code `ObjImportError` handles
 invalid options/input, abort/deadline, runtime rejection and canonical failure.
 
 `OBJ_PARSER_LIMITS` declares hard ceilings: 8 MiB input, 4096 UTF-8 bytes/line,
-100,000 combined source elements, 100,000 faces, 300,000 expanded vertices,
+100,000 combined source elements, 100,000 faces, 256 corners/face, 1,000,000 global triangulation work units,
+300,000 expanded vertices,
 128 primitive groups, 128 materials, 32 library references and 64 diagnostic entries. Pass
 `limits` to tighten any ceiling, `signal` for cancellation and `timeoutMs`
 (1–30,000, default 30,000) for the whole parse. The parser copies the input before
@@ -110,7 +111,7 @@ The default reference-only path omits material **definitions** with a `dropped`
 loss requiring explicit `allowLoss: true`. Set `includeMaterials: true` for the
 paired MTL path below. Texture files are not included. Rigs, skins, animation,
 blend shapes, textures and analytic geometry are rejected even with consent;
-Tasks27–29 retain their separate geometry and fidelity responsibilities. Task26 preserves inert external references as described below.
+Tasks28–29 retain their separate normal and fidelity responsibilities. Task26 preserves inert external references as described below.
 
 `OBJ_EXPORT_LIMITS` bounds aggregate resources (16 MiB), resources (32), accessors
 (512), nodes (4096), primitive instances (128), corners (300,000), unique source
@@ -363,3 +364,34 @@ See [ADR0010](docs/adrs/adr-0010-safe-relative-resource-identities.md) and the
 rollback still use remotely evaluated `gpu.model.conversion.enabled`; pin the
 last qualified public 0.4.0 when rolling back this profile. No capability or local
 flag evaluator is added by package-only reference preservation.
+
+## Deterministic polygon triangulation
+
+Simple planar convex and concave faces with 3–256 corners import directly into
+canonical triangle topology. No option or loss consent is needed for valid
+polygons. Deterministic ear clipping preserves the authored winding, original
+f32 corner positions and independent UV/normal indices, face groups, materials
+and smoothing metadata. Every n-corner face emits exactly n-2 triangles. A fixed
+`OBJ_POLYGON_TRIANGULATED` warning records the topology conversion; no repair or
+fidelity loss is claimed. Export writes the derived triangles; it does not
+reconstruct original polygon contours.
+
+Degenerate triangles/polygons, repeated or collinear corners, touching/crossing
+nonadjacent edges, holes and non-planar contours reject in every mode, including
+with `allowLoss: true`. There is no silent welding, projection or face removal.
+The existing invalid-index face-drop ledger remains separate. Validation operates
+on canonical f32 values: after translation/normalization by largest 3D extent,
+plane-distance tolerance is 1e-7, orientation/area tolerance 1e-12 and squared
+point-distance tolerance 1e-24. Near-threshold/thin shapes are conservatively
+rejected. Admitted coordinates are retained unchanged. Triangle degeneracy
+validation intentionally tightens the earlier admission profile.
+
+`limits.maxFaceVertices` and `limits.maxTriangulationWork` tighten the hard 256
+corner and 1,000,000 import-wide work ceilings. Validation and ear-search loops
+consume the same global budget, including triangles; capacity for all expanded
+corners is checked first. At most 256 work units run between cooperative yields.
+The existing whole-operation abort/deadline covers a single complex face too.
+Budget exhaustion returns `OBJ_LIMIT_EXCEEDED` without a partial document.
+Applications still own worker isolation and simultaneous import admission. See
+[ADR0011](docs/adrs/adr-0011-bounded-polygon-triangulation.md) and the
+[triangulation design](docs/designs/obj-triangulation.md).

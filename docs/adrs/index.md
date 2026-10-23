@@ -12,3 +12,5 @@
 - [ADR 0009: Bounded MTL material mapping](adr-0009-bounded-mtl-material-mapping.md)
 
 - [ADR0010: Safe relative resource identities](adr-0010-safe-relative-resource-identities.md)
+
+- [ADR0011: Bounded deterministic polygon triangulation](adr-0011-bounded-polygon-triangulation.md)

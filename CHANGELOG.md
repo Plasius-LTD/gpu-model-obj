@@ -9,6 +9,12 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Add deterministic bounded triangulation of simple planar convex/concave OBJ
+  faces, preserving winding/corner attributes with n-2 canonical triangles.
+  Reject degenerate, intersecting, non-planar or numerically ambiguous shapes,
+  including degenerate triangles; add face/global-work budgets and cooperative
+  abort/deadline coverage within a single face (Task #27).
+
 - **Added**
   - (placeholder)
 
