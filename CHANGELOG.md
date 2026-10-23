@@ -9,6 +9,10 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Add deterministic canonical OBJ triangle export through core in-memory targets,
+  world-space transform/normal handling, stable independent indices, bounded
+  output and explicit unsupported-data/material-loss policy (Task #24).
+
 - **Added**
   - (placeholder)
 

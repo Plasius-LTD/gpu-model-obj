@@ -8,7 +8,8 @@ This repository is the dedicated package boundary defined by ADR 0094.
 
 `parseObj` imports the bounded triangle OBJ profile into the published canonical
 core. `createObjRuntimeAdapter` binds it to runtime acquisition and orchestration.
-Historical `packageName`/`packageBootstrap` exports remain compatible. Export,
+Historical `packageName`/`packageBootstrap` exports remain compatible. The
+deterministic `exportObj` geometry exporter is available below.
 MTL mapping, external resources, polygon triangulation, normal generation and
 advanced fidelity reporting remain tracked separately below.
 
@@ -73,6 +74,57 @@ and resolver policy; the parser never invokes related-resource resolution.
 See [ADR-0007](docs/adrs/adr-0007-bounded-canonical-obj-parser.md) and the
 [parser plan](docs/designs/obj-parser.md).
 
+## Deterministic export
+
+```ts
+import { exportObj } from "@plasius/gpu-model-obj";
+
+// document is the branded, byte-verified result from parseObj or model core.
+const exported = await exportObj(document, { kind: "uint8-array" });
+if (exported.report.accepted && exported.output instanceof Uint8Array) {
+  // The caller owns saving/transmitting these bytes after its own authorization.
+}
+```
+
+`exportObj` uses core's `ModelTarget`, `ExportOptions` and `ModelExportResult`.
+`OBJ_EXPORT_TARGET_KINDS` declares `uint8-array`, `array-buffer` and `blob` support.
+Blob MIME type is `text/plain`; an optional safe basename such as `mesh-1.obj`
+changes the inline manifest's path. Default path is `model.obj`. File paths, URLs,
+streams and archive/package targets are rejected; no implicit I/O occurs.
+
+The profile writes f32 triangle POSITION/NORMAL/TEXCOORD_0 with optional
+u8/u16/u32 indices and interleaved buffers. Scene instances/transforms are baked
+in root/child/primitive order, normals use inverse transpose, and reflections
+reverse winding. Numeric spelling round-trips f32 values without a decimal
+precision setting; identical tuples use independent one-based indices in stable
+first-use order. Output uses LF and a fixed header. Unsupported attributes,
+component types, topologies, singular transforms and nonrepresentable values
+produce a rejected core report with no partial output.
+
+Object/group/material/library/smoothing references are preserved as inert asset
+text. A missing object name falls back to node name, mesh name, then node ID;
+clearing a previous material emits `usemtl off`. Parser reimport retains that off
+marker as metadata. Canonical material bindings take precedence over source hints.
+Canonical material **definitions** are not exported yet: a `dropped` loss requires
+explicit `allowLoss: true`. No MTL/texture file is included. Rigs, skins, animation,
+blend shapes, textures and analytic geometry are rejected even with consent;
+Tasks25–29 retain their separate fidelity and resource responsibilities.
+
+`OBJ_EXPORT_LIMITS` bounds aggregate resources (16 MiB), resources (32), accessors
+(512), nodes (4096), primitive instances (128), corners (300,000), unique source
+elements (100,000) and UTF-8 output (8 MiB). Tighten using `limits`; `signal` and
+`timeoutMs` (1–30,000 ms) cover the whole operation, including stalled resource
+reads. Output is staged in memory, with cooperative processing checkpoints.
+Caller workers and concurrency limits provide additional execution isolation.
+
+Unverified document copies, invalid target/options and operational failures throw
+fixed-code `ObjExportError`; unsupported content and exhausted budgets return
+rejected reports. Strict/tolerant/forensic policy comes from core. Forensic evidence
+contains numeric counts only. Asset bytes intentionally retain authored names;
+do not log arbitrary assets or treat them as safe HTML/telemetry. See
+[ADR0008](docs/adrs/adr-0008-deterministic-canonical-obj-export.md) and the
+[exporter plan](docs/designs/obj-exporter.md).
+
 ## Bootstrap corpus and implementation
 
 The [conformance plan](docs/designs/obj-bootstrap-conformance-plan.md) and
@@ -97,7 +149,7 @@ npm runtime artifact. No external resources are fetched by the fixture tests.
 
 The [existing implementation coordinator](https://github.com/Plasius-LTD/gpu-model-obj/issues/1)
 and [Feature #1151](https://github.com/Plasius-LTD/plasius-ltd-site/issues/1151)
-remain incomplete after parser delivery. The parser uses exact published
+remain incomplete after parser/exporter delivery. The parser uses exact published
 `@plasius/gpu-model-core@0.7.0` and `@plasius/gpu-model-runtime@0.3.2` dependencies;
 it introduces no local workspace references or shared-contract replacements.
 
