@@ -9,6 +9,12 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- Add explicit, bounded OBJ/MTL resource-reference preservation through published
+  runtime resolver ports: safe relative paths/spaces, missing-resource diagnostics,
+  aggregate byte/count/deadline controls, canonical inert identities and multiple
+  actual MTL file export with reloaded texture identities (Task #26). No implicit
+  I/O, image decoding, embedded image output or renderer binding is introduced.
+
 - **Added**
   - (placeholder)
 

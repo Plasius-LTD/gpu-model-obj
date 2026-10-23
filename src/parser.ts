@@ -1,3 +1,4 @@
+import { resourcePaths, resourceSession } from "./resources.js";
 import { createModelResultBase, type GpuModelConversionIssue, type ModelLoadResult } from "@plasius/gpu-model-core";
 import { sha256Hex } from "@plasius/gpu-model-runtime";
 import { importMaterials } from "./materials.js";
@@ -32,7 +33,7 @@ function unsafeText(text: string): boolean {
 /** Parse an owned, bounded UTF-8 triangle OBJ snapshot into canonical core. */
 export async function parseObj(input: Uint8Array, options: ObjParseOptions = {}): Promise<ModelLoadResult> {
   const startedAt = performance.now();
-  const { limits, mode, allowLoss, signal, timeoutMs, materialLibraries } = parserPolicy(options);
+  const { limits, mode, allowLoss, signal, timeoutMs, materialLibraries, resources } = parserPolicy(options);
   const clock = parserClock(signal, timeoutMs, startedAt);
   clock.check();
   if (!(input instanceof Uint8Array)) throw new ObjImportError("OBJ_INVALID_INPUT");
@@ -97,6 +98,12 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
       }
       (command === "v" ? positions : command === "vt" ? uvs : normals).push(values.slice(0, size) as number[]);
     } else if (["o", "g", "usemtl", "mtllib", "s"].includes(command)) {
+      if (command === "mtllib" && resources) {
+        const paths = resourcePaths(physical.trim().slice(command.length).trim(), true);
+        if (!paths || paths.some(path => !path.endsWith(".mtl"))) { issue("OBJ_UNSAFE_RESOURCE_PATH", "Material reference violates the relative-path policy."); continue; }
+        if (limit(libraryNames.length + paths.length > limits.maxReferences)) break;
+        libraryNames.push(...paths); continue;
+      }
       const name = tokens.join(" ");
       if ((command !== "g" && !name) || name.length > 256 || (command === "g" && tokens.length > 16)) { issue("OBJ_INVALID_REFERENCE", "Reference name is empty or exceeds the supported profile."); continue; }
       if (command === "o") objectName = name;
@@ -146,19 +153,27 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   }
   if (!outputVertices && !stopped) issue("OBJ_EMPTY_GEOMETRY", "Input has no surviving triangle geometry.");
   if (stopped || !result().report.accepted) return result();
-  const materials = materialLibraries === undefined ? { materials: [], libraryHashes: [] } : await importMaterials(materialLibraries, libraryNames, groups, limits, mode, clock, entry => {
+  const emit = (entry: GpuModelConversionIssue) => {
     if (issues.length >= limits.maxDiagnostics) {
-      issues[limits.maxDiagnostics - 1] = { kind: "unsupported", code: "OBJ_LIMIT_EXCEEDED", message: "Diagnostic count exceeded the parser budget.", path: "/diagnostics" };
-      stopped = true;
+      issues[limits.maxDiagnostics - 1] = { kind: "unsupported", code: "OBJ_LIMIT_EXCEEDED", message: "Diagnostic count exceeded the parser budget.", path: "/diagnostics" }; stopped = true;
     } else issues.push(entry);
     return !stopped;
-  });
+  };
+  const session = resources ? resourceSession(materialLibraries ?? [], limits, mode, clock, emit, bytes.byteLength + (materialLibraries?.reduce((sum, f) => sum + f.bytes.byteLength, 0) ?? 0), resources.resolver) : undefined;
+  const files = [...(materialLibraries ?? [])];
+  if (session) for (const name of new Set(libraryNames)) {
+    if (stopped) break;
+    const library = await session.acquire(name, "material");
+    if (library && !files.some(f => f.name === name)) files.push({ name, bytes: library });
+  }
+  if (stopped || !result().report.accepted) return result();
+  const materials = materialLibraries === undefined && !resources ? { materials: [], libraryHashes: [] } : await importMaterials(files, libraryNames, groups, limits, mode, clock, emit, session);
   const base = result();
   if (!base.report.accepted || stopped) return base;
   await clock.checkpoint();
   try {
     const sourceHash = await sha256Hex(bytes); clock.check();
-    const document = await projectObj(groups, libraryNames, sourceHash, clock.check, clock.checkpoint, signal, materials.materials, materials.libraryHashes);
+    const document = await projectObj(groups, libraryNames, sourceHash, clock.check, clock.checkpoint, signal, materials.materials, materials.libraryHashes, session?.entries);
     clock.check();
     return Object.freeze({ ...base, document });
   } catch (error) {

@@ -1,3 +1,4 @@
+import { MAP_COMMANDS, resourcePaths, resourcePathFromLibrary, encodeResourcePath, resourcePathForLibrary, safeResourcePath, type ObjResourceSession, type ObjTextureReference } from "./resources.js";
 import type {
   GpuModelMaterial,
   GpuModelConversionIssue,
@@ -78,6 +79,7 @@ export async function importMaterials(
   mode: GpuModelDiagnosticMode,
   clock: ReturnType<typeof parserClock>,
   emit: (issue: GpuModelConversionIssue) => boolean,
+  resources?: ObjResourceSession,
 ): Promise<{
   materials: GpuModelMaterial[];
   libraryHashes: { name: string; contentHash: string }[];
@@ -115,17 +117,19 @@ export async function importMaterials(
           alpha: number;
           emissive: number[];
           seen: Set<string>;
+          maps: ObjTextureReference[];
         }
       | undefined;
     const flush = () => {
       if (current) {
-        const m = material(
+        let m = material(
           `material-${output.length}`,
           current.name,
           current.color,
           current.alpha,
           current.emissive,
         );
+        if (resources) m = { ...m, sourceMetadata: { objMaterialLibrary: name, objTextureReferences: current.maps.map(r => ({ ...r })) } };
         output.push(m);
         byName.set(current.name, m);
       }
@@ -188,6 +192,7 @@ export async function importMaterials(
           alpha: 1,
           emissive: [0, 0, 0],
           seen: new Set(),
+          maps: [],
         };
         continue;
       }
@@ -195,7 +200,13 @@ export async function importMaterials(
         keepGoing = issue("MTL_MISSING_DECLARATION", path);
         continue;
       }
-      if (["Kd", "Ke", "d", "Tr"].includes(command)) {
+      if (resources && MAP_COMMANDS.has(command)) {
+        const paths = resourcePaths(physical.trim().slice(command.length).trim(), false);
+        const identity = paths?.length === 1 ? resourcePathFromLibrary(name, paths[0]!) : undefined;
+        if (!identity || current.seen.has(command)) { keepGoing = issue("MTL_INVALID_RESOURCE_REFERENCE", path); continue; }
+        current.seen.add(command); current.maps.push({ command, path: identity });
+        await resources.acquire(identity, "texture"); clock.check();
+      } else if (["Kd", "Ke", "d", "Tr"].includes(command)) {
         const key = command === "Tr" ? "d" : command;
         if (current.seen.has(key)) {
           keepGoing = issue("MTL_INVALID_VALUE", path);
@@ -305,6 +316,7 @@ export function exportMaterials(
   materials: readonly GpuModelMaterial[],
   limits: ObjExportLimits,
   issues: GpuModelConversionIssue[],
+  library?: string,
 ) {
   exportLimit(materials.length > limits.maxMaterials);
   const names = new Map<string, string>();
@@ -386,6 +398,20 @@ export function exportMaterials(
     emit(
       `newmtl ${names.get(m.id)!}\nKd ${color}\nKe ${emissive}\nd ${alpha === 0 ? 0 : alpha}\n\n`,
     );
+    if (library !== undefined) {
+      const refs = m.sourceMetadata.objTextureReferences;
+      if (!Array.isArray(refs) || refs.length > 32) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
+      const commands = new Set<string>();
+      for (const ref of refs) {
+        if (!ref || typeof ref !== "object" || Array.isArray(ref)) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
+        const command = ref.command; const path = ref.path;
+        if (typeof command !== "string" || !MAP_COMMANDS.has(command) || commands.has(command) || !safeResourcePath(path)) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
+        commands.add(command);
+        const relative = resourcePathForLibrary(library, path);
+        if (!relative) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
+        emit(command + " " + encodeResourcePath(relative) + "\n");
+      }
+    }
   }
   exportLimit(size > limits.maxOutputBytes);
   return { names, bytes: encoder.encode(lines.join("")) };

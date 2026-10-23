@@ -17,3 +17,5 @@ export { OBJ_EXPORT_LIMITS, ObjExportError } from "./export-policy.js";
 export type { ObjExportLimits, ObjExportOptions, ObjExportErrorCode } from "./export-policy.js";
 
 export type { ObjExportResult } from "./exporter.js";
+
+export type { ObjResourceOptions, ObjResourceReference, ObjTextureReference } from "./resources.js";
