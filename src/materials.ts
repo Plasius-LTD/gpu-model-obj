@@ -311,6 +311,27 @@ export async function importMaterials(
   return { materials: output, libraryHashes };
 }
 
+/** Shared target-profile predicate; never reads payload bytes or source metadata. */
+export function hasAdvancedMaterialSemantics(m: GpuModelMaterial): boolean {
+  return (
+    m.workflow !== "metallic-roughness" ||
+    (m.metallicFactor ?? 0) !== 0 ||
+    (m.roughnessFactor ?? 1) !== 1 ||
+    m.alphaMode === "mask" ||
+    (m.alphaMode === "opaque" && m.baseColorFactor[3] !== 1) ||
+    m.doubleSided === true ||
+    Object.keys(m.extensions).length > 0 ||
+    Object.keys(m.textures).length > 0 ||
+    m.transmissionFactor !== undefined ||
+    m.clearcoatFactor !== undefined ||
+    m.clearcoatRoughnessFactor !== undefined ||
+    m.sheenColorFactor !== undefined ||
+    m.sheenRoughnessFactor !== undefined ||
+    m.normalScale !== undefined ||
+    m.occlusionStrength !== undefined
+  );
+}
+
 /** Deterministic paired material bytes; no filesystem or network work. */
 export function exportMaterials(
   materials: readonly GpuModelMaterial[],
@@ -353,22 +374,7 @@ export function exportMaterials(
     lines.push(text);
   };
   for (const [index, m] of materials.entries()) {
-    const advanced =
-      m.workflow !== "metallic-roughness" ||
-      (m.metallicFactor ?? 0) !== 0 ||
-      (m.roughnessFactor ?? 1) !== 1 ||
-      m.alphaMode === "mask" ||
-      (m.alphaMode === "opaque" && m.baseColorFactor[3] !== 1) ||
-      m.doubleSided === true ||
-      Object.keys(m.extensions).length > 0 ||
-      Object.keys(m.textures).length > 0 ||
-      m.transmissionFactor !== undefined ||
-      m.clearcoatFactor !== undefined ||
-      m.clearcoatRoughnessFactor !== undefined ||
-      m.sheenColorFactor !== undefined ||
-      m.sheenRoughnessFactor !== undefined ||
-      m.normalScale !== undefined ||
-      m.occlusionStrength !== undefined;
+    const advanced = hasAdvancedMaterialSemantics(m);
     if (m.name !== undefined && names.get(m.id) !== m.name)
       issues.push({
         kind: "loss",
