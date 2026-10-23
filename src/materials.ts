@@ -133,7 +133,12 @@ export async function importMaterials(
     let start = 0;
     let lineNumber = 0;
     for (let end = 0; end <= text.length && keepGoing; end++) {
-      if (end - start > limits.maxLineBytes) {
+      const atEnd = end === text.length || text.charCodeAt(end) === 10;
+      const contentLength =
+        end -
+        start -
+        (atEnd && end > start && text.charCodeAt(end - 1) === 13 ? 1 : 0);
+      if (contentLength > limits.maxLineBytes) {
         issue(
           "MTL_LIMIT_EXCEEDED",
           `/materialLibraries/${fileIndex}/lines/${lineNumber + 1}`,

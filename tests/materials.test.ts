@@ -456,4 +456,11 @@ describe("bounded canonical MTL mapping", () => {
       code: "OBJ_DEADLINE_EXCEEDED",
     });
   });
+  it("counts CRLF line budgets by content bytes, like the OBJ parser", async () => {
+    const r = await load(
+      "newmtl red\r\n#" + "x".repeat(15) + "\r\nKd 1 0 0\r\n",
+      { limits: { maxLineBytes: 16 } },
+    );
+    expect(r.report.accepted).toBe(true);
+  });
 });
