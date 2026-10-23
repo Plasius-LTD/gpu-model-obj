@@ -16,8 +16,9 @@ name or source value. Bound the ledger by semantic families, not entity counts.
 Core's verified immutable document boundary and work ceilings remain authoritative.
 
 Reuse the existing material-profile predicate for advanced semantics. A rejected
-projection gets an aggregate proposed dropped-material entry if no existing
-advanced-material ledger exists. Paired successful MTL retains its existing
+projection replaces any prospective per-material approximation entries with an
+aggregate proposed dropped-material entry, including when geometry rejects after
+material bytes were staged. Paired successful MTL retains its existing
 per-material approximated entries and requires explicit loss consent in all modes.
 Do not duplicate an existing material ledger or implement a private loss schema.
 Forensic evidence stays numeric node/resource counts. No payload reads, external

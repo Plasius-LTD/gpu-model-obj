@@ -469,6 +469,8 @@ exports; they never imply that conversion completed or that data was retained.
 Family entries are aggregated in the order above and use fixed messages and
 structural paths, without authored names, IDs, metadata or payload contents.
 Combined documents report every unsupported family rather than only the first.
+Late geometry rejection replaces prospective per-material approximation entries
+with the aggregate dropped-material entry; staged MTL bytes are never returned.
 The existing `OBJ_EXPORT_UNSUPPORTED_DATA` diagnostic remains blocking in strict,
 tolerant and forensic modes, even with `allowLoss: true`. No output, resource
 manifest, fabricated retained rig or implicit static-pose conversion is returned.

@@ -30,7 +30,9 @@ function rejectedTargetLosses(document: GpuModelDocument, issues: GpuModelConver
     kind: "loss", effect: "dropped", code: `OBJ_EXPORT_${category}_LOSS`, path,
     message: "The OBJ target cannot retain this canonical semantic; export was rejected.",
   });
-  if (!issues.some(issue => issue.code === "MTL_EXPORT_ADVANCED_MATERIAL") && document.materials.some(hasAdvancedMaterialSemantics)) issues.push({
+  // Material bytes are staged; later rejection invalidates their approximation.
+  for (let index = issues.length - 1; index >= 0; index--) if (issues[index]!.code === "MTL_EXPORT_ADVANCED_MATERIAL") issues.splice(index, 1);
+  if (document.materials.some(hasAdvancedMaterialSemantics)) issues.push({
     kind: "loss", effect: "dropped", code: "MTL_EXPORT_ADVANCED_MATERIAL", path: "/materials",
     message: "Advanced material semantics cannot be retained by this rejected OBJ projection.",
   });

@@ -105,6 +105,23 @@ describe("canonical OBJ target fidelity", () => {
     expect(result.lossReports).toEqual([expect.objectContaining({ code: "OBJ_EXPORT_TEXTURE_LOSS", effect: "dropped", path: "/textures" })]);
   });
 
+  it("replaces prospective material approximations when geometry later rejects", async () => {
+    const { advanced } = await fixtures();
+    const mesh = advanced.meshes[0]!; const primitive = mesh.primitives[0]!;
+    const document = createGpuModelDocument({ ...advanced,
+      accessors: [...advanced.accessors, { id: "uv", resourceId: advanced.resources[0]!.id, byteOffset: 0, count: 3, elementType: "vec2", componentType: "u8", normalized: true }],
+      meshes: [{ ...mesh, primitives: [{ ...primitive, attributes: [...primitive.attributes, { semantic: "TEXCOORD_0", accessorId: "uv" }] }] }],
+    });
+    for (const mode of ["strict", "tolerant", "forensic"] as const) {
+      const result = await exportObj(document, target, { mode, includeMaterials: true, allowLoss: true });
+      expect(result.report.accepted).toBe(false);
+      expect(result.output).toBeUndefined();
+      expect(result.materialLibraries).toBeUndefined();
+      expect(result.lossReports).toEqual([expect.objectContaining({ code: "MTL_EXPORT_ADVANCED_MATERIAL", effect: "dropped", path: "/materials" })]);
+      expect(result.lossReports.some(loss => loss.effect === "approximated")).toBe(false);
+    }
+  });
+
   it("leaves lossless geometry deterministic and the input immutable after rejection", async () => {
     const { base, combined } = await fixtures();
     const before = JSON.stringify(combined);
