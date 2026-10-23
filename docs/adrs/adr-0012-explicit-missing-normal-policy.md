@@ -20,7 +20,7 @@ explicit consent to fill only missing corners; retain authored finite f32 values
 including their magnitude. Mixed UV presence remains unsupported. No mode or
 allowLoss setting enables generation implicitly.
 
-Accept one bounded smoothing token; canonicalize `0` to `off` and `on` to `1`.
+Accept one bounded smoothing token without whitespace or backslashes; canonicalize `0` to `off` and `on` to `1`.
 Other numeric/named tokens are exact identities (for example `01` differs from
 `1`). Invalid multi-token smoothing now rejects instead of retaining ambiguous
 metadata. Export validates a single token and emits the same aliases consistently.

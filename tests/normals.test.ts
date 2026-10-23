@@ -113,7 +113,7 @@ describe("explicit bounded OBJ normal policy", () => {
     const r=await parseObj(enc(vertices+"s batch\n"+"f 1 2 3\n".repeat(1000)),generated);
     expect(r.report.accepted).toBe(true);expect(await values(r)).toEqual(Array.from({length:3000},()=>[0,0,1]));
   });
-  it.each(["bad group", ""])("rejects invalid smoothing tokens without leaking them: %s", async s => {
+  it.each(["bad group", "", "bad\u00a0group", "bad\\group"])("rejects invalid smoothing tokens without leaking them: %s", async s => {
     for (const mode of ["strict","tolerant"] as const) rejected(await parseObj(enc(vertices + `s ${s}\nf 1 2 3`), { ...generated, mode }), "OBJ_INVALID_SMOOTHING");
   });
   it.each(["invent", null, true, 1])("validates the normal policy value %s", async missingNormals => {

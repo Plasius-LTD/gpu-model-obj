@@ -109,7 +109,7 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
         libraryNames.push(...paths); continue;
       }
       const name = tokens.join(" ");
-      if (command === "s" && (tokens.length !== 1 || !name || name.length > 256)) { issue("OBJ_INVALID_SMOOTHING", "Smoothing requires one bounded token."); continue; }
+      if (command === "s" && (tokens.length !== 1 || !name || name.length > 256 || /\s/u.test(name) || name.includes("\\"))) { issue("OBJ_INVALID_SMOOTHING", "Smoothing requires one bounded exportable token."); continue; }
       if ((command !== "g" && !name) || name.length > 256 || (command === "g" && tokens.length > 16)) { issue("OBJ_INVALID_REFERENCE", "Reference name is empty or exceeds the supported profile."); continue; }
       if (command === "o") objectName = name;
       if (command === "g") groupNames = tokens;

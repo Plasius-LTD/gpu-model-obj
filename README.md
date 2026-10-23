@@ -416,6 +416,7 @@ const result = await parseObj(bytes, { missingNormals: "generate" });
 
 `s off`/`s 0` produce a hard original-face normal. `s on` aliases group `1`;
 other single named/numeric tokens retain exact identity (`01` differs from `1`).
+Whitespace (including Unicode whitespace) and backslashes are rejected in smoothing tokens.
 Smoothing sums signed area vectors once per original face/source corner, across
 material/group/UV boundaries but only for the same object name, smoothing token
 and source position index. Identical coordinates at different source indices do
