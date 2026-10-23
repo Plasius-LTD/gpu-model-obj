@@ -19,8 +19,8 @@ describe("OBJ bootstrap corpus", () => {
     expect(manifest.authorship).toBe("repository-authored");
     expect(manifest.adapterConformance).toBe("pending");
     expect(manifest.cases.map((entry: { id: string }) => entry.id).sort()).toEqual([
-      "malformed-indices", "missing-library", "missing-texture", "multi-material",
-      "ngon", "smoothing-groups", "triangle",
+      "malformed-indices", "missing-library", "missing-texture", "mixed-normals", "multi-material",
+      "ngon", "smooth-wedge", "smoothing-groups", "triangle",
     ]);
     const listed = new Set<string>();
     for (const entry of manifest.cases) {

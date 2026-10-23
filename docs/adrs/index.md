@@ -14,3 +14,5 @@
 - [ADR0010: Safe relative resource identities](adr-0010-safe-relative-resource-identities.md)
 
 - [ADR0011: Bounded deterministic polygon triangulation](adr-0011-bounded-polygon-triangulation.md)
+
+- [ADR0012: Explicit bounded OBJ missing-normal policy](adr-0012-explicit-missing-normal-policy.md)

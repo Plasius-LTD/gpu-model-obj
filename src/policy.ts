@@ -9,6 +9,7 @@ export const OBJ_PARSER_LIMITS = Object.freeze({
   maxFaces: 100_000,
   maxFaceVertices: 256,
   maxTriangulationWork: 1_000_000,
+  maxNormalWork: 1_000_000,
   maxOutputVertices: 300_000,
   maxPrimitiveGroups: 128,
   maxReferences: 32,
@@ -23,6 +24,8 @@ export interface ObjMaterialLibrary { readonly name: string; readonly bytes: Uin
 
 /** Bounded planar polygon import policy; no external reads or implicit repair are enabled. */
 export interface ObjParseOptions {
+  /** Preserve omissions by default; reject them, or explicitly generate missing corners. */
+  readonly missingNormals?: "preserve" | "reject" | "generate";
   /** Omit for reference-only compatibility; [] explicitly requests material validation. */
   readonly materialLibraries?: readonly ObjMaterialLibrary[];
   /** Presence opts into inert identities; reads require an explicitly injected resolver. */
@@ -58,8 +61,10 @@ function ownData(value: unknown, keys: readonly string[]): Record<string, unknow
   return result;
 }
 
-export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimits; mode: GpuModelDiagnosticMode; allowLoss: boolean; signal?: AbortSignal; timeoutMs: number; materialLibraries?: readonly ObjMaterialLibrary[]; resources?: ObjResourceOptions } {
-  const data = ownData(options, ["limits", "mode", "allowLoss", "signal", "timeoutMs", "materialLibraries", "resources"]);
+export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimits; mode: GpuModelDiagnosticMode; allowLoss: boolean; signal?: AbortSignal; timeoutMs: number; missingNormals: NonNullable<ObjParseOptions["missingNormals"]>; materialLibraries?: readonly ObjMaterialLibrary[]; resources?: ObjResourceOptions } {
+  const data = ownData(options, ["limits", "mode", "allowLoss", "signal", "timeoutMs", "materialLibraries", "resources", "missingNormals"]);
+  const missingNormals = data.missingNormals === undefined ? "preserve" : data.missingNormals;
+  if (missingNormals !== "preserve" && missingNormals !== "reject" && missingNormals !== "generate") throw new ObjImportError("OBJ_INVALID_OPTIONS");
   const limits: ObjParserLimits = { ...OBJ_PARSER_LIMITS };
   if (data.limits !== undefined) {
     const input = ownData(data.limits, Object.keys(OBJ_PARSER_LIMITS));
@@ -109,7 +114,7 @@ export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimit
       names.add(file.name); materialLibraries.push({ name: file.name, bytes });
     }
   }
-  return { limits, mode, allowLoss, materialLibraries, resources, signal: data.signal as AbortSignal | undefined, timeoutMs };
+  return { limits, mode, allowLoss, missingNormals, materialLibraries, resources, signal: data.signal as AbortSignal | undefined, timeoutMs };
 }
 
 /** Cooperative parsing yields every bounded batch so timers and abort can run. */

@@ -30,7 +30,8 @@ and simple planar `f` records with independent positive/negative position/UV/nor
 indices. Preserve names from `o`, `g`, `usemtl`, `mtllib` and `s` as inert
 metadata. Default parsing never acquires libraries or textures; explicit resource policy is described below. Missing attributes remain
 absent. Unsupported records, ambiguous polygons, vertex colours, non-unit weights and
-mixed attribute presence within a face fail explicitly. OBJ's unitless values
+mixed UV presence within a face fail explicitly. Mixed normal presence requires
+the explicit generation policy below. OBJ's unitless values
 are assumed to use metres/Y-up/right-handed coordinates at the authored origin;
 the separate static-demo floor-centred profile needs explicit normalization.
 
@@ -43,7 +44,7 @@ names and should not be logged as telemetry. Fixed-code `ObjImportError` handles
 invalid options/input, abort/deadline, runtime rejection and canonical failure.
 
 `OBJ_PARSER_LIMITS` declares hard ceilings: 8 MiB input, 4096 UTF-8 bytes/line,
-100,000 combined source elements, 100,000 faces, 256 corners/face, 1,000,000 global triangulation work units,
+100,000 combined source elements, 100,000 faces, 256 corners/face, 1,000,000 global triangulation work units and 1,000,000 normal work units,
 300,000 expanded vertices,
 128 primitive groups, 128 materials, 32 library references and 64 diagnostic entries. Pass
 `limits` to tighten any ceiling, `signal` for cancellation and `timeoutMs`
@@ -111,7 +112,7 @@ The default reference-only path omits material **definitions** with a `dropped`
 loss requiring explicit `allowLoss: true`. Set `includeMaterials: true` for the
 paired MTL path below. Texture files are not included. Rigs, skins, animation,
 blend shapes, textures and analytic geometry are rejected even with consent;
-Tasks28–29 retain their separate normal and fidelity responsibilities. Task26 preserves inert external references as described below.
+Task29 retains its separate advanced fidelity responsibilities. Task26 preserves inert external references as described below.
 
 `OBJ_EXPORT_LIMITS` bounds aggregate resources (16 MiB), resources (32), accessors
 (512), nodes (4096), primitive instances (128), corners (300,000), unique source
@@ -395,3 +396,54 @@ Budget exhaustion returns `OBJ_LIMIT_EXCEEDED` without a partial document.
 Applications still own worker isolation and simultaneous import admission. See
 [ADR0011](docs/adrs/adr-0011-bounded-polygon-triangulation.md) and the
 [triangulation design](docs/designs/obj-triangulation.md).
+
+
+## Explicit missing normals and smoothing
+
+`parseObj(bytes, { missingNormals: "preserve" })` is the compatible default:
+wholly omitted normal attributes remain absent, and mixed normal presence within
+a face rejects. Use `missingNormals: "reject"` to require authored normals at
+every corner. `missingNormals: "generate"` explicitly fills only missing corners,
+including mixed authored/missing faces; authored f32 values and magnitudes remain
+unchanged. `createObjRuntimeAdapter({ missingNormals: "generate" })` forwards the
+same policy through the published runtime. Mode/allowLoss never silently enable it.
+
+```ts
+const result = await parseObj(bytes, { missingNormals: "generate" });
+// Check report.accepted before using result.document.
+// OBJ_NORMALS_GENERATED reports that derived normals were explicitly added.
+```
+
+`s off`/`s 0` produce a hard original-face normal. `s on` aliases group `1`;
+other single named/numeric tokens retain exact identity (`01` differs from `1`).
+Whitespace (including Unicode whitespace) and backslashes are rejected in smoothing tokens.
+Smoothing sums signed area vectors once per original face/source corner, across
+material/group/UV boundaries but only for the same object name, smoothing token
+and source position index. Identical coordinates at different source indices do
+not weld; repeated object declarations with the same name share identity.
+Triangulating an n-gon does not add diagonal hard edges or extra corner weights.
+Authored-normal faces contribute geometric area to missing neighbours without
+changing their own normals. This is a deterministic area-weight policy, not an
+inference of author-intended shading.
+
+Zero or nearly cancelling requested sums (length at most 1e-12 of incident area
+magnitudes) reject with `OBJ_AMBIGUOUS_NORMAL` in every mode, even with allowLoss.
+There is no silent orientation repair or fallback normal. `OBJ_MISSING_NORMALS`
+reports reject-policy omissions; invalid multi-token `s` records report
+`OBJ_INVALID_SMOOTHING`. Diagnostics are fixed, bounded and contain no asset text.
+Explicit generation emits one warning, no repair/loss claim. Diagnostic exhaustion
+still rejects. UV omissions are never filled by this policy.
+
+`limits.maxNormalWork` tightens the import-wide 1,000,000-unit ceiling; one unit
+covers each triangle area, smooth source corner and expanded output corner.
+Linear passes yield/check at most every256 units, sharing the whole-operation
+abort/deadline and existing geometry ceilings. No partial document or I/O occurs
+on generation failure. Export preserves smoothing identities and generated normal
+directions deterministically; existing transform/export rules normalize authored
+normal directions and do not preserve their non-unit magnitudes or source index
+spelling. Reimport retains emitted normals without regeneration.
+
+See [ADR0012](docs/adrs/adr-0012-explicit-missing-normal-policy.md) and the
+[acceptance matrix](docs/designs/obj-normals.md). Rollback uses the consuming remote
+`gpu.model.conversion.enabled` evaluator and pins validated public0.6.0; no local
+flag replaces that control. No capability or new consumer integration is added.

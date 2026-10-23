@@ -1,4 +1,5 @@
 import { createObjTriangulator, ObjTriangulationError } from "./triangulation.js";
+import { generateObjNormals, ObjNormalError, type ObjNormalFace } from "./normals.js";
 import { resourcePaths, resourceSession } from "./resources.js";
 import { createModelResultBase, type GpuModelConversionIssue, type ModelLoadResult } from "@plasius/gpu-model-core";
 import { sha256Hex } from "@plasius/gpu-model-runtime";
@@ -34,7 +35,7 @@ function unsafeText(text: string): boolean {
 /** Parse an owned, bounded UTF-8 planar polygon OBJ snapshot into canonical core. */
 export async function parseObj(input: Uint8Array, options: ObjParseOptions = {}): Promise<ModelLoadResult> {
   const startedAt = performance.now();
-  const { limits, mode, allowLoss, signal, timeoutMs, materialLibraries, resources } = parserPolicy(options);
+  const { limits, mode, allowLoss, signal, timeoutMs, materialLibraries, resources, missingNormals } = parserPolicy(options);
   const clock = parserClock(signal, timeoutMs, startedAt);
   clock.check();
   if (!(input instanceof Uint8Array)) throw new ObjImportError("OBJ_INVALID_INPUT");
@@ -68,6 +69,7 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   catch { issue("OBJ_INVALID_UTF8", "Input is not valid UTF-8."); return result(); }
   const positions: number[][] = []; const uvs: number[][] = []; const normals: number[][] = [];
   const groups: ObjGeometryGroup[] = []; const libraryNames: string[] = [];
+  const normalFaces: ObjNormalFace[] = [];
   let previousKey: string | undefined;
   let objectName = ""; let groupNames: string[] = []; let materialName = ""; let smoothing = "off";
   let faces = 0; let outputVertices = 0; let polygonFaces = 0;
@@ -107,11 +109,12 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
         libraryNames.push(...paths); continue;
       }
       const name = tokens.join(" ");
+      if (command === "s" && (tokens.length !== 1 || !name || name.length > 256 || /\s/u.test(name) || name.includes("\\"))) { issue("OBJ_INVALID_SMOOTHING", "Smoothing requires one bounded exportable token."); continue; }
       if ((command !== "g" && !name) || name.length > 256 || (command === "g" && tokens.length > 16)) { issue("OBJ_INVALID_REFERENCE", "Reference name is empty or exceeds the supported profile."); continue; }
       if (command === "o") objectName = name;
       if (command === "g") groupNames = tokens;
       if (command === "usemtl") materialName = name;
-      if (command === "s") smoothing = name;
+      if (command === "s") smoothing = name === "0" ? "off" : name === "on" ? "1" : name;
       if (command === "mtllib") {
         if (limit(libraryNames.length + tokens.length > limits.maxReferences)) break;
         libraryNames.push(...tokens);
@@ -137,7 +140,8 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
         continue;
       }
       const valid = corners as { p: number; t: number | undefined; n: number | undefined }[];
-      if (valid.some(corner => (corner.t === undefined) !== (valid[0]!.t === undefined) || (corner.n === undefined) !== (valid[0]!.n === undefined))) { issue("OBJ_MIXED_ATTRIBUTES", "A face must use consistent texture/normal index presence."); continue; }
+      if (missingNormals === "reject" && valid.some(corner => corner.n === undefined)) { issue("OBJ_MISSING_NORMALS", "Missing corner normals are forbidden by the selected policy."); continue; }
+      if (valid.some(corner => (corner.t === undefined) !== (valid[0]!.t === undefined) || missingNormals !== "generate" && (corner.n === undefined) !== (valid[0]!.n === undefined))) { issue("OBJ_MIXED_ATTRIBUTES", "A face requires consistent attributes unless missing normals are explicitly generated."); continue; }
       const expandedCount = (valid.length - 2) * 3;
       if (limit(outputVertices + expandedCount > limits.maxOutputVertices)) break;
       let triangles: number[];
@@ -156,11 +160,13 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
         group = { objectName, groups: groupNames, materialName, smoothing, positions: [], uvs: [], normals: [] };
         previousKey = key; groups.push(group);
       }
+      if (missingNormals === "generate") normalFaces.push({ group, offset: group.normals.length, corners: valid, triangles });
       for (const cornerIndex of triangles) {
         const corner = valid[cornerIndex]!;
         group.positions.push(...positions[corner.p]!);
         if (corner.t !== undefined) group.uvs.push(...uvs[corner.t]!);
         if (corner.n !== undefined) group.normals.push(...normals[corner.n]!);
+        else if (missingNormals === "generate") group.normals.push(0, 0, 0);
       }
       outputVertices += expandedCount;
     } else issue("OBJ_UNSUPPORTED_RECORD", "Record is outside the supported OBJ polygon profile.");
@@ -171,6 +177,18 @@ export async function parseObj(input: Uint8Array, options: ObjParseOptions = {})
   }
   if (!outputVertices && !stopped) issue("OBJ_EMPTY_GEOMETRY", "Input has no surviving triangle geometry.");
   if (stopped || !result().report.accepted) return result();
+  if (missingNormals === "generate") {
+    try {
+      if (await generateObjNormals(normalFaces, positions, limits, clock)) {
+        if (issues.length >= limits.maxDiagnostics) limit(true);
+        else issues.push({ kind: "warning", code: "OBJ_NORMALS_GENERATED", message: "Missing normals were explicitly generated from bounded original-face area weights.", path: "/geometry" });
+      }
+    } catch (error) {
+      if (!(error instanceof ObjNormalError)) throw error;
+      issue(error.code, "Normal generation exceeded its budget or has an ambiguous direction.");
+    }
+    if (stopped || !result().report.accepted) return result();
+  }
   const emit = (entry: GpuModelConversionIssue) => {
     if (issues.length >= limits.maxDiagnostics) {
       issues[limits.maxDiagnostics - 1] = { kind: "unsupported", code: "OBJ_LIMIT_EXCEEDED", message: "Diagnostic count exceeded the parser budget.", path: "/diagnostics" }; stopped = true;

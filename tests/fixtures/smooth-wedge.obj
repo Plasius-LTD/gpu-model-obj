@@ -1,0 +1,13 @@
+# Authored fixture: equal-area faces sharing source positions, across groups/materials.
+v 0 0 0
+v 1 0 0
+v 0 1 0
+v 0 0 1
+o wedge
+s rounded
+g front
+usemtl red
+f 1 2 3
+g side
+usemtl blue
+f 1 4 2

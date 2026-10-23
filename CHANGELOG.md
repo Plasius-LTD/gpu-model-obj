@@ -10,10 +10,10 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 ## [Unreleased]
 
 - **Added**
-  - (placeholder)
+  - Explicit preserve/reject/generate missing-normal policies for parsing and the runtime bridge. Opt-in generation preserves authored f32 normals and uses bounded original-face area weights across material/group/UV seams, respecting source vertex/object/smoothing identity.
 
 - **Changed**
-  - (placeholder)
+  - Smoothing records and export metadata require one bounded token; `s 0` canonicalizes to `off` and `s on` to `1`. Invalid multi-token smoothing and ambiguous requested smooth normals reject atomically in every mode.
 
 - **Fixed**
   - (placeholder)

@@ -81,6 +81,26 @@
         }
       ],
       "expectedOutcome": "Preserve s off and s 1 transitions; missing normals require the documented hard/smooth boundary policy."
+    },
+    {
+      "id": "smooth-wedge",
+      "files": [
+        {
+          "path": "smooth-wedge.obj",
+          "sha256": "d4ca5db49eb3baa89da9e9db6965cd80b21aa6e7938c5d54ad543205c259113e"
+        }
+      ],
+      "expectedOutcome": "Explicit generation produces equal-area smooth shared corners across object-preserving material/group splits; preserve leaves omissions."
+    },
+    {
+      "id": "mixed-normals",
+      "files": [
+        {
+          "path": "mixed-normals.obj",
+          "sha256": "afb1523c1031e77f2988dcc7a0b9abe8cd0cfa124e20007959bea81692c4f852"
+        }
+      ],
+      "expectedOutcome": "Preserve rejects mixed corners; explicit generation keeps the authored f32 normal magnitude and fills only missing corners."
     }
   ]
 }
