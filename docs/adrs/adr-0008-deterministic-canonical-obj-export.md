@@ -14,7 +14,11 @@ in `@plasius/gpu-model-runtime@0.3.2`. No new dependency is needed.
 
 Add `exportObj(document, target, options)` with core's adapter export signature and
 `ModelExportResult`. Accept only documents branded by this installed core instance;
-shape copies and structured clones must first re-enter core verification. Targets
+shape copies and structured clones must first re-enter core verification. Core
+0.7.0 already enforces exact affine node matrices, unsigned in-range index bytes
+and equal vertex-attribute counts before branding. Read payloads with a captured
+native Blob intrinsic, matching core, so later caller-added methods cannot replace
+the attested bytes. Do not duplicate these canonical validators. Targets
 are `uint8-array`, `array-buffer`, or `blob`. Return a core inline manifest describing
 one `model.obj` mesh entry (`text/plain`); a safe basename on a Blob target changes
 only the manifest path. No filesystem/network/stream writes, archive construction,

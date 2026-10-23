@@ -5,6 +5,8 @@ import { exportScene, geometryReader, worldVector } from "./export-geometry.js";
 /** Declared target support; no file, stream, resolver or archive writer is bundled. */
 export const OBJ_EXPORT_TARGET_KINDS = Object.freeze(["uint8-array", "array-buffer", "blob"] as const);
 const encoder = new TextEncoder();
+// Match core's native Blob boundary; ignore caller-added payload methods.
+const resourceArrayBuffer = Blob.prototype.arrayBuffer;
 function reference(value: GpuModelMetadataValue | undefined, fallback: string, token = false): string {
   const text = value === undefined ? fallback : value;
   if (typeof text !== "string" || !text || text.length > 256 || text !== text.trim() || Array.from(text).some(character => { const point = character.codePointAt(0)!; return character === "#" || character === "\\" || point < 32 || point >= 127 && point <= 159 || point >= 0x2028 && point <= 0x202e || point >= 0x2066 && point <= 0x2069; }) || token && /\s/u.test(text)) throw new ObjExportRejection("OBJ_EXPORT_INVALID_REFERENCE");
@@ -30,7 +32,7 @@ export const exportObj: (document: GpuModelDocument, target: ModelTarget, option
     const buffers = new Map<string, DataView>();
     for (const resource of document.resources) {
       clock.check();
-      if (resource.kind === "buffer") buffers.set(resource.id, new DataView(await clock.run(() => resource.payload.arrayBuffer())));
+      if (resource.kind === "buffer") buffers.set(resource.id, new DataView(await clock.run(() => Reflect.apply(resourceArrayBuffer, resource.payload, []) as Promise<ArrayBuffer>)));
       clock.check();
     }
     const read = geometryReader(document, buffers);

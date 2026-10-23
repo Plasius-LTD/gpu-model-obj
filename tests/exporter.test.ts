@@ -192,15 +192,17 @@ describe("OBJ exporter boundary qualification", () => {
     const doc=await model();
     const read=vi.spyOn(Blob.prototype,"arrayBuffer").mockImplementation(()=>new Promise(()=>{}));
     const c=new AbortController(); const remove=vi.spyOn(c.signal,"removeEventListener");
+    vi.resetModules(); const {exportObj:exportWithRead}=await import("../src/exporter.js");
     try {
-      await expect(exportObj(doc,target,{timeoutMs:10})).rejects.toMatchObject({code:"OBJ_EXPORT_DEADLINE_EXCEEDED"});
-      const pending=exportObj(doc,target,{signal:c.signal});setTimeout(()=>c.abort("private"),0);
+      await expect(exportWithRead(doc,target,{timeoutMs:10})).rejects.toMatchObject({code:"OBJ_EXPORT_DEADLINE_EXCEEDED"});
+      const pending=exportWithRead(doc,target,{signal:c.signal});setTimeout(()=>c.abort("private"),0);
       await expect(pending).rejects.toMatchObject({code:"OBJ_EXPORT_ABORTED"});expect(remove).toHaveBeenCalled();
-    } finally {read.mockRestore();remove.mockRestore();}
+    } finally {read.mockRestore();remove.mockRestore();vi.resetModules();}
   });
   it("scrubs asynchronous resource failures", async () => {
     const doc=await model();const read=vi.spyOn(Blob.prototype,"arrayBuffer").mockRejectedValue(Error("private path"));
-    try {await expect(exportObj(doc,target)).rejects.toMatchObject({code:"OBJ_EXPORT_RESOURCE_FAILED",message:"OBJ export: OBJ_EXPORT_RESOURCE_FAILED"});}finally{read.mockRestore();}
+    vi.resetModules(); const {exportObj:exportWithRead}=await import("../src/exporter.js");
+    try {await expect(exportWithRead(doc,target)).rejects.toMatchObject({code:"OBJ_EXPORT_RESOURCE_FAILED",message:"OBJ export: OBJ_EXPORT_RESOURCE_FAILED"});}finally{read.mockRestore();vi.resetModules();}
   });
   it("keeps emitted source elements within the importer's admitted profile", async () => {
     const doc=await model(); const result=await exportObj(doc,target,{limits:{maxSourceElements:2}});
@@ -265,4 +267,24 @@ it("keeps canonical material identities distinct when display names collide", as
   const materials=["first","second"].map(id=>({id,name:"same display name",workflow:"metallic-roughness" as const,alphaMode:"opaque" as const,baseColorFactor:[1,1,1,1] as const,textures:{},extensions:{},sourceMetadata:{}}));
   const input=modify(doc,{materials,meshes:[{...mesh,primitives:mesh.primitives.map((p,i)=>({...p,materialId:materials[i]!.id}))}]});
   const text=await textOf(await exportObj(input,target,{allowLoss:true}));expect(text).toContain("usemtl first\n");expect(text).toContain("usemtl second\n");
+});
+
+it("reads attested Blob bytes without invoking a caller-added arrayBuffer method", async () => {
+  const doc=await model();const payload=doc.resources[0]!.payload;
+  const override=vi.fn(async()=>new ArrayBuffer(payload.size));
+  Object.defineProperty(payload,"arrayBuffer",{value:override,configurable:true});
+  try {const output=await exportObj(doc,target);const again=await model(await textOf(output));expect(again.bounds).toEqual(doc.bounds);expect(override).not.toHaveBeenCalled();}finally{Reflect.deleteProperty(payload,"arrayBuffer");}
+});
+
+it.each([3,7,11,15])("relies on pinned core's exact affine admission for matrix slot %i", async slot => {
+  const doc=await model();const node=doc.nodes[0]!;const matrix=[...node.localMatrix];matrix[slot]=slot===15?2:0.125;
+  expect(()=>modify(doc,{nodes:[{...node,localMatrix:matrix as unknown as typeof node.localMatrix}]})).toThrow(/must be affine/);
+  await expect(exportObj({...doc,nodes:[{...node,localMatrix:matrix}]} as unknown as GpuModelDocument,target)).rejects.toMatchObject({code:"OBJ_EXPORT_INVALID_DOCUMENT"});
+});
+
+it("uses pinned core to reject out-of-range index bytes before document branding", async () => {
+  const doc=await model();const bytes=new Uint8Array(48);const view=new DataView(bytes.buffer);
+  [0,0,0,1,0,0,0,1,0].forEach((n,i)=>view.setFloat32(i*4,n,true));bytes.set([3,0,1],36);
+  const port:GpuModelResourceVerificationPort={async digestSha256(chunks){const values:number[]=[];for await(const chunk of chunks)values.push(...chunk);return sha256Hex(new Uint8Array(values));},async inspectResource(chunks){for await(const chunk of chunks)void chunk;return {valid:true,detectedMimeType:"application/octet-stream"};}};
+  await expect(createAndVerifyGpuModelDocument({...doc,resources:[{id:"b",kind:"buffer",byteLength:48,contentHash:await sha256Hex(bytes),mimeType:"application/octet-stream",payload:new Blob([bytes.buffer])}],accessors:[{id:"p",resourceId:"b",byteOffset:0,count:3,componentType:"f32",elementType:"vec3",min:[0,0,0],max:[1,1,0]},{id:"i",resourceId:"b",byteOffset:36,count:3,componentType:"u8",elementType:"scalar"}],meshes:[{id:"mesh",primitives:[{id:"p",topology:"triangles",indicesAccessorId:"i",attributes:[{semantic:"POSITION",accessorId:"p"}]}]}]},port)).rejects.toMatchObject({code:"invalid-reference"});
 });
