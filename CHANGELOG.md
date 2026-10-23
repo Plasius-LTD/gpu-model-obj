@@ -9,6 +9,20 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ## [Unreleased]
 
+- **Added**
+  - (placeholder)
+
+- **Changed**
+  - (placeholder)
+
+- **Fixed**
+  - (placeholder)
+
+- **Security**
+  - (placeholder)
+
+## [0.5.1] - 2026-10-23
+
 - Reject inconsistent caller-created declared-library and resource-manifest identities atomically before OBJ/MTL export (Task #26 review follow-up).
 
 - **Added**
@@ -566,7 +580,7 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 
 ---
 
-[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Plasius-LTD/gpu-model-obj/compare/v0.5.1...HEAD
 [1.0.0]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.0
 [1.0.13]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.13
 [1.0.17]: https://github.com/Plasius-LTD/schema/releases/tag/v1.0.17
@@ -613,3 +627,4 @@ The format is based on **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/
 [0.3.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.3.0
 [0.4.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.4.0
 [0.5.0]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.5.0
+[0.5.1]: https://github.com/Plasius-LTD/gpu-model-obj/releases/tag/v0.5.1
