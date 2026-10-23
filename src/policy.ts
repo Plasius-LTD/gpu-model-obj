@@ -1,3 +1,4 @@
+import { safeResourcePath, type ObjResourceOptions } from "./resources.js";
 import type { GpuModelDiagnosticMode, ModelLoadResult } from "@plasius/gpu-model-core";
 
 /** Hard ceilings for one import. Callers may only tighten these budgets. */
@@ -22,6 +23,8 @@ export interface ObjMaterialLibrary { readonly name: string; readonly bytes: Uin
 export interface ObjParseOptions {
   /** Omit for reference-only compatibility; [] explicitly requests material validation. */
   readonly materialLibraries?: readonly ObjMaterialLibrary[];
+  /** Presence opts into inert identities; reads require an explicitly injected resolver. */
+  readonly resources?: ObjResourceOptions;
   readonly mode?: GpuModelDiagnosticMode;
   /** Explicit consent for discarded invalid faces; false by default. */
   readonly allowLoss?: boolean;
@@ -53,8 +56,8 @@ function ownData(value: unknown, keys: readonly string[]): Record<string, unknow
   return result;
 }
 
-export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimits; mode: GpuModelDiagnosticMode; allowLoss: boolean; signal?: AbortSignal; timeoutMs: number; materialLibraries?: readonly ObjMaterialLibrary[] } {
-  const data = ownData(options, ["limits", "mode", "allowLoss", "signal", "timeoutMs", "materialLibraries"]);
+export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimits; mode: GpuModelDiagnosticMode; allowLoss: boolean; signal?: AbortSignal; timeoutMs: number; materialLibraries?: readonly ObjMaterialLibrary[]; resources?: ObjResourceOptions } {
+  const data = ownData(options, ["limits", "mode", "allowLoss", "signal", "timeoutMs", "materialLibraries", "resources"]);
   const limits: ObjParserLimits = { ...OBJ_PARSER_LIMITS };
   if (data.limits !== undefined) {
     const input = ownData(data.limits, Object.keys(OBJ_PARSER_LIMITS));
@@ -71,6 +74,20 @@ export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimit
   if (data.signal !== undefined && !(data.signal instanceof AbortSignal)) throw new ObjImportError("OBJ_INVALID_OPTIONS");
   const allowLoss = data.allowLoss ?? false;
   if (typeof allowLoss !== "boolean") throw new ObjImportError("OBJ_INVALID_OPTIONS");
+  let resources: ObjResourceOptions | undefined;
+  if (data.resources !== undefined) {
+    const resourceData = ownData(data.resources, ["resolver"]);
+    if (resourceData.resolver === undefined) resources = {};
+    else {
+      const resolver = resourceData.resolver;
+      if (!resolver || typeof resolver !== "object") throw new ObjImportError("OBJ_INVALID_OPTIONS");
+      let owner: object | null = resolver; let descriptor: PropertyDescriptor | undefined; let depth = 0;
+      while (owner && depth++ < 16 && !descriptor) { descriptor = Object.getOwnPropertyDescriptor(owner, "resolve"); owner = Object.getPrototypeOf(owner); }
+      if (!descriptor || !("value" in descriptor) || typeof descriptor.value !== "function") throw new ObjImportError("OBJ_INVALID_OPTIONS");
+      const resolve = descriptor.value;
+      resources = { resolver: { resolve: (reference, options) => Reflect.apply(resolve, resolver, [reference, options]) } };
+    }
+  }
   let materialLibraries: ObjMaterialLibrary[] | undefined;
   if (data.materialLibraries !== undefined) {
     const table = data.materialLibraries;
@@ -81,7 +98,7 @@ export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimit
       const entry = Object.getOwnPropertyDescriptor(table, String(i));
       if (!entry || !("value" in entry)) throw new ObjImportError("OBJ_INVALID_OPTIONS");
       const file = ownData(entry.value, ["name", "bytes"]);
-      if (typeof file.name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.mtl$/.test(file.name) || names.has(file.name) || !(file.bytes instanceof Uint8Array)) throw new ObjImportError("OBJ_INVALID_OPTIONS");
+      if (typeof file.name !== "string" || !(resources ? safeResourcePath(file.name) && file.name.endsWith(".mtl") : /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.mtl$/.test(file.name)) || names.has(file.name) || !(file.bytes instanceof Uint8Array)) throw new ObjImportError("OBJ_INVALID_OPTIONS");
       const size = Reflect.apply(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Uint8Array.prototype), "byteLength")!.get!, file.bytes, []) as number;
       total += size;
       if (total > OBJ_PARSER_LIMITS.maxInputBytes) throw new ObjImportError("OBJ_INVALID_OPTIONS");
@@ -90,7 +107,7 @@ export function parserPolicy(options: ObjParseOptions): { limits: ObjParserLimit
       names.add(file.name); materialLibraries.push({ name: file.name, bytes });
     }
   }
-  return { limits, mode, allowLoss, materialLibraries, signal: data.signal as AbortSignal | undefined, timeoutMs };
+  return { limits, mode, allowLoss, materialLibraries, resources, signal: data.signal as AbortSignal | undefined, timeoutMs };
 }
 
 /** Cooperative parsing yields every bounded batch so timers and abort can run. */
@@ -103,5 +120,17 @@ export function parserClock(signal: AbortSignal | undefined, timeoutMs: number, 
   return {
     check,
     async checkpoint() { check(); await new Promise<void>(resolve => setTimeout(resolve, 0)); check(); },
+    async run<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+      check(); const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+      let abort: () => void = () => {};
+      try {
+        return await new Promise<T>((resolve, reject) => {
+          abort = () => { controller.abort(); reject(new ObjImportError("OBJ_ABORTED")); };
+          signal?.addEventListener("abort", abort, { once: true });
+          timer = setTimeout(() => { controller.abort(); reject(new ObjImportError("OBJ_DEADLINE_EXCEEDED")); }, Math.max(1, deadline - performance.now()));
+          operation(controller.signal).then(resolve, reject);
+        });
+      } finally { clearTimeout(timer); signal?.removeEventListener("abort", abort); }
+    },
   };
 }

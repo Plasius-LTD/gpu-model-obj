@@ -10,7 +10,7 @@ This repository is the dedicated package boundary defined by ADR 0094.
 core. `createObjRuntimeAdapter` binds it to runtime acquisition and orchestration.
 Historical `packageName`/`packageBootstrap` exports remain compatible. The
 deterministic `exportObj` geometry exporter is available below.
-Opt-in bounded MTL mapping is available below. External resources, polygon triangulation, normal generation and
+Opt-in bounded MTL mapping and explicit safe external-resource identities are available below. Polygon triangulation, normal generation and
 advanced fidelity reporting remain tracked separately below.
 
 ```ts
@@ -28,7 +28,7 @@ if (result.document) {
 The profile accepts `v x y z` (optional homogeneous `1`), `vt u v`, `vn x y z`
 and triangle `f` records with independent positive/negative position/UV/normal
 indices. Preserve names from `o`, `g`, `usemtl`, `mtllib` and `s` as inert
-metadata; libraries and textures are never fetched. Missing attributes remain
+metadata. Default parsing never acquires libraries or textures; explicit resource policy is described below. Missing attributes remain
 absent. Unsupported records, polygons, vertex colours, non-unit weights and
 mixed attribute presence within a face fail explicitly. OBJ's unitless values
 are assumed to use metres/Y-up/right-handed coordinates at the authored origin;
@@ -70,7 +70,7 @@ const loaded = await runtime.loadModel({ kind: "uint8-array", bytes }, {
 `bytes` above is the caller's admitted source. The bridge advertises no bundled
 worker and interprets fixed constructor `limits`, `timeoutMs`, and `allowLoss`,
 rather than runtime per-call `adapterOptions`. Runtime owns acquisition, cache
-and resolver policy; the parser never invokes related-resource resolution.
+and resolver policy. Related-resource resolution requires the explicit constructor opt-in described below.
 See [ADR-0007](docs/adrs/adr-0007-bounded-canonical-obj-parser.md) and the
 [parser plan](docs/designs/obj-parser.md).
 
@@ -110,7 +110,7 @@ The default reference-only path omits material **definitions** with a `dropped`
 loss requiring explicit `allowLoss: true`. Set `includeMaterials: true` for the
 paired MTL path below. Texture files are not included. Rigs, skins, animation,
 blend shapes, textures and analytic geometry are rejected even with consent;
-Tasks26–29 retain their separate fidelity and resource responsibilities.
+Tasks27–29 retain their separate geometry and fidelity responsibilities. Task26 preserves inert external references as described below.
 
 `OBJ_EXPORT_LIMITS` bounds aggregate resources (16 MiB), resources (32), accessors
 (512), nodes (4096), primitive instances (128), corners (300,000), unique source
@@ -156,8 +156,7 @@ if (loaded.document) {
 profile. Passing `[]` requests definition/binding validation with no supplied
 files. Only files named by `mtllib` are interpreted, in first reference order;
 the input table's order does not change output. Names are safe, case-sensitive
-basenames matching `[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.mtl`; no directory, URL,
-resolver, filesystem read or fetch is involved. Files are snapshotted before the
+basenames matching `[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\.mtl`; directories require the explicit resource profile below. No ambient filesystem read or fetch is involved. Files are snapshotted before the
 first await. Aggregate OBJ + supplied MTL input uses the 8 MiB ceiling, including
 unreferenced table entries; the table cannot exceed 32 entries or 8 MiB itself.
 An invalid/duplicate table entry throws `OBJ_INVALID_OPTIONS` before parsing.
@@ -271,3 +270,96 @@ the prepared SHA is the exact `main` head after successful push-triggered CI.
 The completed `0.1.0` bootstrap path has been removed; subsequent releases must
 use npm trusted publishing.
 <!-- END PLASIUS RELEASE INTEGRITY -->
+
+## Safe external resource identities
+
+Task [26](https://github.com/Plasius-LTD/gpu-model-obj/issues/26) adds an explicit
+reference-preservation profile. Image bytes remain caller-owned; this profile
+neither decodes images nor creates canonical texture/renderer bindings. An
+`available` resource means its bytes and SHA-256 were observed, **not** that an
+image decoder approved its content. Accepted results contain a fixed warning
+for that limitation. No ambient fetch, filesystem API, resolver construction,
+archive extraction, retry, or image upload occurs.
+
+```ts
+import { parseObj, exportObj } from "@plasius/gpu-model-obj";
+import type { ResourceResolver } from "@plasius/gpu-model-runtime";
+
+// approvedResolver is constructed/authorized by the caller's acquisition layer.
+const approvedResolver: ResourceResolver = callerOwnedResolver;
+const loaded = await parseObj(objBytes, { resources: { resolver: approvedResolver } });
+if (loaded.document) {
+  const output = await exportObj(loaded.document, { kind: "uint8-array" }, {
+    includeMaterials: true,
+  });
+  // Save actual OBJ and output.materialLibraries bytes only after authorization.
+  // The directory manifest also names external textures; provide their admitted
+  // bytes separately. No texture payload is included by this exporter.
+}
+```
+
+Passing `resources: {}` enables preservation without granting any I/O. Supply
+`materialLibraries` for in-memory MTL files, including safe relative directory
+paths. Missing textures are retained as unresolved identities; strict mode
+rejects them, and tolerant/forensic require `allowLoss: true` for core's registered
+`missing-texture-path` repair. Missing libraries emit `OBJ_MISSING_LIBRARY`;
+used definitions retain the existing default-material repair/consent requirements.
+Missing unused libraries remain inert and are never fabricated during export.
+Omitting `resources` preserves the 0.4.0 basename-only material profile and its
+unsupported-map loss behavior.
+
+The optional `resources.resolver` uses published runtime `ResourceResolver`.
+Only validated package-root relative paths cross that port, sequentially, once
+per distinct identity, with remaining `maxBytes` and a cancellation signal.
+The parser verifies returned path, byte count and SHA-256, copies admitted
+bytes, and sanitizes port failures. Input + all supplied MTL + acquired MTL and
+texture bytes share the 8 MiB ceiling; all material/texture identities share the 32
+reference ceiling. Unreferenced supplied files count against the input budget.
+The whole-operation deadline covers stalled ports and aborts their signal;
+providers must honor cancellation and enforce `maxBytes` while acquiring data.
+Workers remain caller-provided. `createObjRuntimeAdapter({ resolveResources:
+true })` explicitly forwards runtime's acquisition resolver; default bridge
+construction performs no related-resource reads.
+
+Paths are case-sensitive ASCII segments of letters, digits, underscore, dot,
+hyphen and internal spaces, separated by `/`, at most 256 characters. Segments
+cannot be empty, `.`/`..`, begin with `-`, end with `.`, or have edge spaces.
+Absolute paths, schemes/drive letters, percent encoding, query/fragment syntax,
+backslash separators, Unicode/control characters and traversal are rejected
+before I/O. An OBJ `mtllib` line may list multiple paths; quote paths containing
+spaces (`"material files/a.mtl"`) or escape spaces (`material\ files/a.mtl`).
+For MTL map filenames, unquoted internal spaces are literal; quotes and escaped
+spaces are also accepted. `#` starts a comment only outside quotes at a token
+boundary. `mtllib` paths must end in `.mtl`. No path normalization, URL decoding,
+upward resolution, or absolute-scheme allowlist is inferred. Resolver authors
+remain responsible for keeping accepted relative keys within their own sandbox.
+
+Supported inert map declarations are `map_Ka`, `map_Kd`, `map_Ks`, `map_Ke`,
+`map_Ns`, `map_d`, `bump`, `map_bump`, `disp`, `decal`, `norm`, `map_Pr`, `map_Pm`
+and `map_Ps`. Each slot occurs at most once per material. Map options (`-s`,
+`-o`, etc.), reflection-type options, continuation syntax and unsupported map
+semantics fail explicitly in this profile; no lossy reinterpretation occurs.
+A texture path is relative to its declaring MTL directory. Canonical
+`metadata.objResourceReferences` holds ordered root-relative path/role/status
+and optional observed content hash; `material.sourceMetadata.objMaterialLibrary`
+and `objTextureReferences` retain library ownership and map slot identities.
+These are inert asset metadata and must not be logged as telemetry or treated
+as permission to read. Unavailable images are deliberately not core's
+byte-verified image resources or resource-graph nodes.
+
+Paired export preserves those library paths, returns **all actual files** in
+`materialLibraries`, and preserves map paths relative to each output MTL.
+`materialLibrary` remains the single-file convenience when exactly one file is
+returned. Default material-only export still generates `model.mtl` compatibly.
+Caller-created resource metadata is revalidated before any output is returned;
+collisions, inconsistent ownership and cross-directory upward rebasing are
+rejected atomically. `resourcePackage` uses `directory-manifest` when external
+textures remain; descriptors never imply image payload inclusion. Reimport the
+actual exported table with `resources: {}` (and consent for unresolved images),
+or supply an approved resolver to revalidate image availability.
+
+See [ADR0010](docs/adrs/adr-0010-safe-relative-resource-identities.md) and the
+[resource design](docs/designs/obj-resource-references.md). Consumer rollout and
+rollback still use remotely evaluated `gpu.model.conversion.enabled`; pin the
+last qualified public 0.4.0 when rolling back this profile. No capability or local
+flag evaluator is added by package-only reference preservation.

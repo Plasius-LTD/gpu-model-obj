@@ -1,3 +1,4 @@
+import type { ObjResourceReference } from "./resources.js";
 import {
   CANONICAL_GPU_MODEL_COORDINATE_SYSTEM, GPU_MODEL_DOCUMENT_SCHEMA_VERSION,
   createAndVerifyGpuModelDocument,
@@ -20,7 +21,7 @@ export interface ObjGeometryGroup {
 
 export async function projectObj(
   groups: readonly ObjGeometryGroup[], libraries: readonly string[], sourceHash: string,
-  check: () => void, checkpoint: () => Promise<void>, signal?: AbortSignal, materials: readonly GpuModelMaterial[] = [], libraryHashes: readonly { readonly name: string; readonly contentHash: string }[] = [],
+  check: () => void, checkpoint: () => Promise<void>, signal?: AbortSignal, materials: readonly GpuModelMaterial[] = [], libraryHashes: readonly { readonly name: string; readonly contentHash: string }[] = [], resourceReferences?: readonly ObjResourceReference[],
 ): Promise<GpuModelDocument> {
   const total = groups.reduce((sum, group) => sum + group.positions.length + group.uvs.length + group.normals.length, 0);
   const bytes = new Uint8Array(total * 4);
@@ -81,7 +82,7 @@ export async function projectObj(
       materials, textures: [], skeletons: [], joints: [], skins: [], blendShapes: [], animations: [], analyticGeometry: [],
       bounds: { min, max },
       provenance: { sourceFormat: "obj", sourceContentHash: sourceHash, converterId: "plasius.gpu-model-obj.triangle-import", converterVersion: "1" },
-      diagnostics: [], metadata: { materialLibraries: libraries, ...(libraryHashes.length ? { materialLibraryContentHashes: libraryHashes } : {}), sourceUnit: "unitless", coordinateAssumption: "metre-y-up-right-handed-authored-origin" },
+      diagnostics: [], metadata: { ...(resourceReferences ? { objResourceReferences: resourceReferences.map(r => ({ ...r })) } : {}), materialLibraries: libraries, ...(libraryHashes.length ? { materialLibraryContentHashes: libraryHashes } : {}), sourceUnit: "unitless", coordinateAssumption: "metre-y-up-right-handed-authored-origin" },
     }, port, { signal });
     check(); return document;
   } catch (error) {
