@@ -69,16 +69,17 @@
   "homepage": "https://github.com/Plasius-LTD/gpu-model-obj#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^26.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.59.3",
-    "@typescript-eslint/parser": "^8.59.3",
-    "@vitest/coverage-v8": "^4.1.6",
-    "eslint": "^10.3.0",
-    "globals": "^17.6.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
+    "@types/node": "^26.6.6",
+    "@typescript-eslint/eslint-plugin": "^8.73.0",
+    "@typescript-eslint/parser": "^8.73.0",
+    "@vitest/coverage-v8": "^5.1.1",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^5.1.1",
+    "vite": "^8.3.8"
   },
   "publishConfig": {
     "access": "public"
@@ -97,14 +98,14 @@
     "nanoid": "3.3.18",
     "brace-expansion": "5.0.12",
     "esbuild": "0.28.1",
-    "minimatch": "^10.2.1",
+    "minimatch": "^11.0.9",
     "postcss": "8.5.23"
   },
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
-    "@plasius/gpu-model-core": "0.7.0",
-    "@plasius/gpu-model-runtime": "0.3.2"
+    "@plasius/gpu-model-core": "0.7.2",
+    "@plasius/gpu-model-runtime": "0.4.1"
   }
 }
